@@ -5,6 +5,16 @@ from PyQt5.QtWidgets import (
 )
 from PyQt5.QtGui import QFont, QColor, QPalette
 
+# Exchange rate constants (1 USD =)
+COP_TO_USD = 0.00024  # Colombian Peso to USD
+PEN_TO_USD = 0.27     # Peruvian Sol to USD
+BRL_TO_USD = 0.18     # Brazilian Real to USD
+
+# Exchange rate display (for info label)
+USD_TO_COP = 4166.67  # USD to Colombian Peso
+USD_TO_PEN = 3.70     # USD to Peruvian Sol
+USD_TO_BRL = 5.55     # USD to Brazilian Real
+
 class AnimatedInput(QFrame):
     def __init__(self, label_text, color, placeholder, parent=None):
         super().__init__(parent)
@@ -174,7 +184,7 @@ class MainWindow(QWidget):
         layout.addLayout(button_layout)
 
         # Info label for exchange rates
-        self.info_label = QLabel("Taxa de câmbio: 1 USD = 4166.67 COP | 3.70 PEN | 5.55 BRL")
+        self.info_label = QLabel(f"Taxa de câmbio: 1 USD = {USD_TO_COP:.2f} COP | {USD_TO_PEN:.2f} PEN | {USD_TO_BRL:.2f} BRL")
         self.info_label.setFont(QFont("Arial", 9))
         self.info_label.setStyleSheet("color: #888; padding: 5px;")
         self.info_label.setAlignment(Qt.AlignCenter)
@@ -217,24 +227,22 @@ class MainWindow(QWidget):
         self.button.animateIn(600)
         self.clear_button.animateIn(700)
 
+    def _parse_currency_input(self, input_text):
+        """Parse and validate currency input, returning float value or 0 if invalid"""
+        try:
+            if input_text and input_text.strip():
+                return float(input_text.replace(',', '.'))
+        except (ValueError, AttributeError):
+            pass
+        return 0.0
+
     def convert(self):
-        # Validate inputs
-        has_valid_input = False
-        try:
-            pesos = float(self.pesos_input.input.text().replace(',', '.')) if self.pesos_input.input.text() else 0
-            has_valid_input = has_valid_input or pesos > 0
-        except Exception:
-            pesos = 0
-        try:
-            soles = float(self.soles_input.input.text().replace(',', '.')) if self.soles_input.input.text() else 0
-            has_valid_input = has_valid_input or soles > 0
-        except Exception:
-            soles = 0
-        try:
-            reais = float(self.reais_input.input.text().replace(',', '.')) if self.reais_input.input.text() else 0
-            has_valid_input = has_valid_input or reais > 0
-        except Exception:
-            reais = 0
+        # Validate and parse inputs
+        pesos = self._parse_currency_input(self.pesos_input.input.text())
+        soles = self._parse_currency_input(self.soles_input.input.text())
+        reais = self._parse_currency_input(self.reais_input.input.text())
+        
+        has_valid_input = pesos > 0 or soles > 0 or reais > 0
 
         if not has_valid_input:
             self.result_label.showAnimated(
@@ -242,9 +250,9 @@ class MainWindow(QWidget):
             )
             return
 
-        psdolar = pesos * 0.00024
-        soldolar = soles * 0.27
-        realdolar = reais * 0.18
+        psdolar = pesos * COP_TO_USD
+        soldolar = soles * PEN_TO_USD
+        realdolar = reais * BRL_TO_USD
         total = psdolar + soldolar + realdolar
         
         result_parts = []
