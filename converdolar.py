@@ -6,8 +6,9 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtGui import QFont, QColor, QPalette
 
 class AnimatedInput(QFrame):
-    def __init__(self, label_text, color, parent=None):
+    def __init__(self, label_text, color, placeholder, parent=None):
         super().__init__(parent)
+        self.color = color
         self.setStyleSheet(f"background: {color}; border-radius: 15px;")
         self.setMaximumHeight(100)
         layout = QVBoxLayout()
@@ -16,12 +17,31 @@ class AnimatedInput(QFrame):
         self.label.setStyleSheet("color: #fff;")
         self.input = QLineEdit()
         self.input.setFont(QFont("Arial", 16))
+        self.input.setPlaceholderText(placeholder)
         self.input.setStyleSheet(
-            "background: #fff; border: none; border-radius: 10px; padding: 8px 12px;"
+            "background: #fff; border: 2px solid transparent; border-radius: 10px; padding: 8px 12px;"
         )
+        self.input.textChanged.connect(self.validateInput)
         layout.addWidget(self.label)
         layout.addWidget(self.input)
         self.setLayout(layout)
+
+    def validateInput(self):
+        text = self.input.text()
+        if text and text.strip():
+            try:
+                float(text.replace(',', '.'))
+                self.input.setStyleSheet(
+                    "background: #fff; border: 2px solid #27ae60; border-radius: 10px; padding: 8px 12px;"
+                )
+            except ValueError:
+                self.input.setStyleSheet(
+                    "background: #fff; border: 2px solid #e74c3c; border-radius: 10px; padding: 8px 12px;"
+                )
+        else:
+            self.input.setStyleSheet(
+                "background: #fff; border: 2px solid transparent; border-radius: 10px; padding: 8px 12px;"
+            )
 
     def animateIn(self, delay=0):
         def start_anim():
@@ -39,12 +59,28 @@ class AnimatedInput(QFrame):
             start_anim()
 
 class AnimatedButton(QPushButton):
-    def __init__(self, text, color, parent=None):
+    def __init__(self, text, color, hover_color, parent=None):
         super().__init__(text, parent)
+        self.color = color
+        self.hover_color = hover_color
         self.setFont(QFont("Arial", 16, QFont.Bold))
+        self.setCursor(Qt.PointingHandCursor)
         self.setStyleSheet(
-            f"background: {color}; color: #fff; border-radius: 12px; padding: 10px 28px;"
+            f"background: {color}; color: #fff; border-radius: 12px; padding: 12px 32px; border: none;"
         )
+        self.setMinimumHeight(50)
+
+    def enterEvent(self, event):
+        self.setStyleSheet(
+            f"background: {self.hover_color}; color: #fff; border-radius: 12px; padding: 12px 32px; border: none;"
+        )
+        super().enterEvent(event)
+
+    def leaveEvent(self, event):
+        self.setStyleSheet(
+            f"background: {self.color}; color: #fff; border-radius: 12px; padding: 12px 32px; border: none;"
+        )
+        super().leaveEvent(event)
 
     def animateIn(self, delay=0):
         def start_anim():
@@ -64,9 +100,13 @@ class AnimatedButton(QPushButton):
 class ResultLabel(QLabel):
     def __init__(self, parent=None):
         super().__init__("", parent)
-        self.setFont(QFont("Arial", 16, QFont.Bold))
-        self.setStyleSheet("color: #2c3e50; background: #ecf0f1; border-radius: 10px; padding: 10px;")
+        self.setFont(QFont("Arial", 15))
+        self.setStyleSheet(
+            "color: #2c3e50; background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #e8f5e9, stop:1 #c8e6c9); "
+            "border-radius: 12px; padding: 16px; border: 2px solid #81c784;"
+        )
         self.setAlignment(Qt.AlignCenter)
+        self.setMinimumHeight(100)
         self.hide()
 
     def showAnimated(self, text):
@@ -83,39 +123,78 @@ class ResultLabel(QLabel):
 class MainWindow(QWidget):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Conversor de Moedas Animado 💸")
-        self.setGeometry(100, 100, 470, 520)
+        self.setWindowTitle("Conversor de Moedas 💸")
+        self.setGeometry(100, 100, 500, 600)
+        self.setMinimumSize(450, 550)
         palette = QPalette()
-        palette.setColor(QPalette.Window, QColor("#24243e"))
+        palette.setColor(QPalette.Window, QColor("#1a1a2e"))
         self.setPalette(palette)
         self.setAutoFillBackground(True)
         layout = QVBoxLayout()
-        layout.setContentsMargins(30, 30, 30, 30)
-        layout.setSpacing(24)
+        layout.setContentsMargins(35, 35, 35, 35)
+        layout.setSpacing(20)
 
-        self.title = QLabel("💸 Conversor de Moedas Animado")
-        self.title.setFont(QFont("Arial", 22, QFont.Bold))
+        # Title with subtitle
+        title_container = QVBoxLayout()
+        self.title = QLabel("💸 Conversor de Moedas")
+        self.title.setFont(QFont("Arial", 24, QFont.Bold))
         self.title.setStyleSheet("color: #fff;")
         self.title.setAlignment(Qt.AlignCenter)
-        layout.addWidget(self.title)
+        
+        self.subtitle = QLabel("Converta suas moedas para dólar americano")
+        self.subtitle.setFont(QFont("Arial", 11))
+        self.subtitle.setStyleSheet("color: #a0a0a0;")
+        self.subtitle.setAlignment(Qt.AlignCenter)
+        
+        title_container.addWidget(self.title)
+        title_container.addWidget(self.subtitle)
+        layout.addLayout(title_container)
+        layout.addSpacing(10)
 
-        self.pesos_input = AnimatedInput("Pesos Colombianos (COP):", "#4e54c8")
-        self.soles_input = AnimatedInput("Sol Peruano (PEN):", "#8f94fb")
-        self.reais_input = AnimatedInput("Reais (BRL):", "#43cea2")
+        # Currency inputs with placeholders
+        self.pesos_input = AnimatedInput("Pesos Colombianos (COP):", "#667eea", "Digite o valor em pesos...")
+        self.soles_input = AnimatedInput("Sol Peruano (PEN):", "#764ba2", "Digite o valor em soles...")
+        self.reais_input = AnimatedInput("Reais (BRL):", "#f093fb", "Digite o valor em reais...")
         layout.addWidget(self.pesos_input)
         layout.addWidget(self.soles_input)
         layout.addWidget(self.reais_input)
 
-        self.button = AnimatedButton("Converter para Dólar", "#ff512f")
+        # Buttons layout
+        button_layout = QVBoxLayout()
+        button_layout.setSpacing(12)
+        
+        self.button = AnimatedButton("💱 Converter para Dólar", "#4caf50", "#45a049")
         self.button.clicked.connect(self.convert)
-        layout.addWidget(self.button)
+        button_layout.addWidget(self.button)
+        
+        self.clear_button = AnimatedButton("🔄 Limpar Campos", "#607d8b", "#546e7a")
+        self.clear_button.clicked.connect(self.clear_fields)
+        button_layout.addWidget(self.clear_button)
+        
+        layout.addLayout(button_layout)
+
+        # Info label for exchange rates
+        self.info_label = QLabel("Taxa de câmbio: 1 USD = 4166.67 COP | 3.70 PEN | 5.55 BRL")
+        self.info_label.setFont(QFont("Arial", 9))
+        self.info_label.setStyleSheet("color: #888; padding: 5px;")
+        self.info_label.setAlignment(Qt.AlignCenter)
+        layout.addWidget(self.info_label)
 
         self.result_label = ResultLabel()
         layout.addWidget(self.result_label)
+        
+        layout.addStretch()
         self.setLayout(layout)
 
         # Animate elements on start (like GSAP stagger)
         QTimer.singleShot(100, self.animStart)
+
+    def clear_fields(self):
+        """Clear all input fields and hide result"""
+        self.pesos_input.input.clear()
+        self.soles_input.input.clear()
+        self.reais_input.input.clear()
+        self.result_label.hide()
 
     def animStart(self):
         self.title.setWindowOpacity(0)
@@ -124,33 +203,62 @@ class MainWindow(QWidget):
         anim.setEndValue(1)
         anim.setDuration(700)
         anim.start()
+        
+        self.subtitle.setWindowOpacity(0)
+        anim2 = QPropertyAnimation(self.subtitle, b"windowOpacity")
+        anim2.setStartValue(0)
+        anim2.setEndValue(1)
+        anim2.setDuration(700)
+        anim2.start()
+        
         self.pesos_input.animateIn(0)
         self.soles_input.animateIn(200)
         self.reais_input.animateIn(400)
         self.button.animateIn(600)
+        self.clear_button.animateIn(700)
 
     def convert(self):
+        # Validate inputs
+        has_valid_input = False
         try:
             pesos = float(self.pesos_input.input.text().replace(',', '.')) if self.pesos_input.input.text() else 0
+            has_valid_input = has_valid_input or pesos > 0
         except Exception:
             pesos = 0
         try:
             soles = float(self.soles_input.input.text().replace(',', '.')) if self.soles_input.input.text() else 0
+            has_valid_input = has_valid_input or soles > 0
         except Exception:
             soles = 0
         try:
             reais = float(self.reais_input.input.text().replace(',', '.')) if self.reais_input.input.text() else 0
+            has_valid_input = has_valid_input or reais > 0
         except Exception:
             reais = 0
+
+        if not has_valid_input:
+            self.result_label.showAnimated(
+                "<span style='color: #e74c3c; font-weight: bold;'>⚠️ Por favor, insira pelo menos um valor válido!</span>"
+            )
+            return
 
         psdolar = pesos * 0.00024
         soldolar = soles * 0.27
         realdolar = reais * 0.18
-        result = (
-            f"Pesos Colombianos em Dólar: <b>${psdolar:.2f}</b><br>"
-            f"Sol Peruano em Dólar: <b>${soldolar:.2f}</b><br>"
-            f"Reais em Dólar: <b>${realdolar:.2f}</b>"
-        )
+        total = psdolar + soldolar + realdolar
+        
+        result_parts = []
+        if pesos > 0:
+            result_parts.append(f"<b>COP {pesos:,.2f}</b> = <b style='color: #27ae60;'>${psdolar:.2f}</b>")
+        if soles > 0:
+            result_parts.append(f"<b>PEN {soles:,.2f}</b> = <b style='color: #27ae60;'>${soldolar:.2f}</b>")
+        if reais > 0:
+            result_parts.append(f"<b>BRL {reais:,.2f}</b> = <b style='color: #27ae60;'>${realdolar:.2f}</b>")
+        
+        result = "<br>".join(result_parts)
+        if len(result_parts) > 1:
+            result += f"<br><hr style='border: 1px solid #81c784; margin: 10px 0;'><b style='font-size: 18px;'>Total: <span style='color: #2e7d32;'>${total:.2f} USD</span></b>"
+        
         self.result_label.showAnimated(result)
 
 if __name__ == "__main__":
