@@ -15,6 +15,15 @@ USD_TO_COP = 4166.67  # USD to Colombian Peso
 USD_TO_PEN = 3.70     # USD to Peruvian Sol
 USD_TO_BRL = 5.55     # USD to Brazilian Real
 
+# UI Gradient color constants
+GRADIENT_PURPLE_VIOLET = "qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #667eea, stop:1 #764ba2)"
+GRADIENT_PINK_RED = "qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #f093fb, stop:1 #f5576c)"
+GRADIENT_CYAN_TURQUOISE = "qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #4facfe, stop:1 #00f2fe)"
+GRADIENT_GREEN = "qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #56ab2f, stop:1 #a8e063)"
+GRADIENT_GREEN_HOVER = "qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #4a9628, stop:1 #95c956)"
+GRADIENT_GRAY = "qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #434343, stop:1 #000000)"
+GRADIENT_GRAY_HOVER = "qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #525252, stop:1 #1a1a1a)"
+
 class AnimatedInput(QFrame):
     def __init__(self, label_text, color, placeholder, parent=None):
         super().__init__(parent)
@@ -85,7 +94,7 @@ class AnimatedButton(QPushButton):
 
     def enterEvent(self, event):
         self.setStyleSheet(
-            f"background: {self.hover_color}; color: #ffffff; border-radius: 14px; padding: 16px 32px; border: none; font-weight: 600; transform: scale(1.02);"
+            f"background: {self.hover_color}; color: #ffffff; border-radius: 14px; padding: 16px 32px; border: none; font-weight: 600;"
         )
         super().enterEvent(event)
 
@@ -153,7 +162,7 @@ class MainWindow(QWidget):
         title_container.setSpacing(8)
         self.title = QLabel("💸 Conversor de Moedas")
         self.title.setFont(QFont("Segoe UI", 28, QFont.Bold))
-        self.title.setStyleSheet("color: #ffffff; letter-spacing: 1px;")
+        self.title.setStyleSheet("color: #ffffff;")
         self.title.setAlignment(Qt.AlignCenter)
         
         self.subtitle = QLabel("Converta suas moedas para dólar americano com facilidade")
@@ -167,9 +176,9 @@ class MainWindow(QWidget):
         layout.addSpacing(16)
 
         # Currency inputs with placeholders
-        self.pesos_input = AnimatedInput("🇨🇴 Pesos Colombianos (COP)", "qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #667eea, stop:1 #764ba2)", "Ex: 10000")
-        self.soles_input = AnimatedInput("🇵🇪 Sol Peruano (PEN)", "qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #f093fb, stop:1 #f5576c)", "Ex: 100")
-        self.reais_input = AnimatedInput("🇧🇷 Real Brasileiro (BRL)", "qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #4facfe, stop:1 #00f2fe)", "Ex: 50")
+        self.pesos_input = AnimatedInput("🇨🇴 Pesos Colombianos (COP)", GRADIENT_PURPLE_VIOLET, "Ex: 10000")
+        self.soles_input = AnimatedInput("🇵🇪 Sol Peruano (PEN)", GRADIENT_PINK_RED, "Ex: 100")
+        self.reais_input = AnimatedInput("🇧🇷 Real Brasileiro (BRL)", GRADIENT_CYAN_TURQUOISE, "Ex: 50")
         layout.addWidget(self.pesos_input)
         layout.addWidget(self.soles_input)
         layout.addWidget(self.reais_input)
@@ -178,11 +187,11 @@ class MainWindow(QWidget):
         button_layout = QVBoxLayout()
         button_layout.setSpacing(14)
         
-        self.button = AnimatedButton("💱 Converter para Dólar (USD)", "qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #56ab2f, stop:1 #a8e063)", "qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #4a9628, stop:1 #95c956)")
+        self.button = AnimatedButton("💱 Converter para Dólar (USD)", GRADIENT_GREEN, GRADIENT_GREEN_HOVER)
         self.button.clicked.connect(self.convert)
         button_layout.addWidget(self.button)
         
-        self.clear_button = AnimatedButton("🔄 Limpar Todos os Campos", "qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #434343, stop:1 #000000)", "qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #525252, stop:1 #1a1a1a)")
+        self.clear_button = AnimatedButton("🔄 Limpar Todos os Campos", GRADIENT_GRAY, GRADIENT_GRAY_HOVER)
         self.clear_button.clicked.connect(self.clear_fields)
         button_layout.addWidget(self.clear_button)
         
