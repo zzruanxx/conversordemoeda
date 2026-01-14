@@ -15,21 +15,33 @@ USD_TO_COP = 4166.67  # USD to Colombian Peso
 USD_TO_PEN = 3.70     # USD to Peruvian Sol
 USD_TO_BRL = 5.55     # USD to Brazilian Real
 
+# UI Gradient color constants
+GRADIENT_PURPLE_VIOLET = "qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #667eea, stop:1 #764ba2)"
+GRADIENT_PINK_RED = "qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #f093fb, stop:1 #f5576c)"
+GRADIENT_CYAN_TURQUOISE = "qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #4facfe, stop:1 #00f2fe)"
+GRADIENT_GREEN = "qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #56ab2f, stop:1 #a8e063)"
+GRADIENT_GREEN_HOVER = "qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #4a9628, stop:1 #95c956)"
+GRADIENT_GRAY = "qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #434343, stop:1 #000000)"
+GRADIENT_GRAY_HOVER = "qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #525252, stop:1 #1a1a1a)"
+
 class AnimatedInput(QFrame):
     def __init__(self, label_text, color, placeholder, parent=None):
         super().__init__(parent)
         self.color = color
-        self.setStyleSheet(f"background: {color}; border-radius: 15px;")
-        self.setMaximumHeight(100)
+        self.setStyleSheet(f"background: {color}; border-radius: 18px; padding: 4px;")
+        self.setMaximumHeight(110)
+        self.setMinimumHeight(110)
         layout = QVBoxLayout()
+        layout.setContentsMargins(16, 12, 16, 12)
+        layout.setSpacing(8)
         self.label = QLabel(label_text)
-        self.label.setFont(QFont("Arial", 14, QFont.Bold))
-        self.label.setStyleSheet("color: #fff;")
+        self.label.setFont(QFont("Segoe UI", 13, QFont.Bold))
+        self.label.setStyleSheet("color: #ffffff; background: transparent;")
         self.input = QLineEdit()
-        self.input.setFont(QFont("Arial", 16))
+        self.input.setFont(QFont("Segoe UI", 15))
         self.input.setPlaceholderText(placeholder)
         self.input.setStyleSheet(
-            "background: #fff; border: 2px solid transparent; border-radius: 10px; padding: 8px 12px;"
+            "background: #ffffff; border: 3px solid transparent; border-radius: 12px; padding: 12px 16px; color: #2c3e50;"
         )
         self.input.textChanged.connect(self.validateInput)
         layout.addWidget(self.label)
@@ -42,15 +54,15 @@ class AnimatedInput(QFrame):
             try:
                 float(text.replace(',', '.'))
                 self.input.setStyleSheet(
-                    "background: #fff; border: 2px solid #27ae60; border-radius: 10px; padding: 8px 12px;"
+                    "background: #ffffff; border: 3px solid #27ae60; border-radius: 12px; padding: 12px 16px; color: #2c3e50;"
                 )
             except ValueError:
                 self.input.setStyleSheet(
-                    "background: #fff; border: 2px solid #e74c3c; border-radius: 10px; padding: 8px 12px;"
+                    "background: #ffffff; border: 3px solid #e74c3c; border-radius: 12px; padding: 12px 16px; color: #2c3e50;"
                 )
         else:
             self.input.setStyleSheet(
-                "background: #fff; border: 2px solid transparent; border-radius: 10px; padding: 8px 12px;"
+                "background: #ffffff; border: 3px solid transparent; border-radius: 12px; padding: 12px 16px; color: #2c3e50;"
             )
 
     def animateIn(self, delay=0):
@@ -73,22 +85,22 @@ class AnimatedButton(QPushButton):
         super().__init__(text, parent)
         self.color = color
         self.hover_color = hover_color
-        self.setFont(QFont("Arial", 16, QFont.Bold))
+        self.setFont(QFont("Segoe UI", 15, QFont.Bold))
         self.setCursor(Qt.PointingHandCursor)
         self.setStyleSheet(
-            f"background: {color}; color: #fff; border-radius: 12px; padding: 12px 32px; border: none;"
+            f"background: {color}; color: #ffffff; border-radius: 14px; padding: 16px 32px; border: none; font-weight: 600;"
         )
-        self.setMinimumHeight(50)
+        self.setMinimumHeight(56)
 
     def enterEvent(self, event):
         self.setStyleSheet(
-            f"background: {self.hover_color}; color: #fff; border-radius: 12px; padding: 12px 32px; border: none;"
+            f"background: {self.hover_color}; color: #ffffff; border-radius: 14px; padding: 16px 32px; border: none; font-weight: 600;"
         )
         super().enterEvent(event)
 
     def leaveEvent(self, event):
         self.setStyleSheet(
-            f"background: {self.color}; color: #fff; border-radius: 12px; padding: 12px 32px; border: none;"
+            f"background: {self.color}; color: #ffffff; border-radius: 14px; padding: 16px 32px; border: none; font-weight: 600;"
         )
         super().leaveEvent(event)
 
@@ -110,13 +122,14 @@ class AnimatedButton(QPushButton):
 class ResultLabel(QLabel):
     def __init__(self, parent=None):
         super().__init__("", parent)
-        self.setFont(QFont("Arial", 15))
+        self.setFont(QFont("Segoe UI", 14))
         self.setStyleSheet(
-            "color: #2c3e50; background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #e8f5e9, stop:1 #c8e6c9); "
-            "border-radius: 12px; padding: 16px; border: 2px solid #81c784;"
+            "color: #1e3a28; background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #d4edda, stop:1 #c3e6cb); "
+            "border-radius: 16px; padding: 20px; border: 3px solid #66bb6a; font-weight: 500;"
         )
         self.setAlignment(Qt.AlignCenter)
-        self.setMinimumHeight(100)
+        self.setMinimumHeight(120)
+        self.setWordWrap(True)
         self.hide()
 
     def showAnimated(self, text):
@@ -133,60 +146,61 @@ class ResultLabel(QLabel):
 class MainWindow(QWidget):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Conversor de Moedas 💸")
-        self.setGeometry(100, 100, 500, 600)
-        self.setMinimumSize(450, 550)
+        self.setWindowTitle("💸 Conversor de Moedas")
+        self.setGeometry(100, 100, 550, 700)
+        self.setMinimumSize(500, 650)
         palette = QPalette()
-        palette.setColor(QPalette.Window, QColor("#1a1a2e"))
+        palette.setColor(QPalette.Window, QColor("#0f1419"))
         self.setPalette(palette)
         self.setAutoFillBackground(True)
         layout = QVBoxLayout()
-        layout.setContentsMargins(35, 35, 35, 35)
-        layout.setSpacing(20)
+        layout.setContentsMargins(40, 40, 40, 40)
+        layout.setSpacing(18)
 
         # Title with subtitle
         title_container = QVBoxLayout()
+        title_container.setSpacing(8)
         self.title = QLabel("💸 Conversor de Moedas")
-        self.title.setFont(QFont("Arial", 24, QFont.Bold))
-        self.title.setStyleSheet("color: #fff;")
+        self.title.setFont(QFont("Segoe UI", 28, QFont.Bold))
+        self.title.setStyleSheet("color: #ffffff;")
         self.title.setAlignment(Qt.AlignCenter)
         
-        self.subtitle = QLabel("Converta suas moedas para dólar americano")
-        self.subtitle.setFont(QFont("Arial", 11))
-        self.subtitle.setStyleSheet("color: #a0a0a0;")
+        self.subtitle = QLabel("Converta suas moedas para dólar americano com facilidade")
+        self.subtitle.setFont(QFont("Segoe UI", 12))
+        self.subtitle.setStyleSheet("color: #8b92a8; font-weight: 400;")
         self.subtitle.setAlignment(Qt.AlignCenter)
         
         title_container.addWidget(self.title)
         title_container.addWidget(self.subtitle)
         layout.addLayout(title_container)
-        layout.addSpacing(10)
+        layout.addSpacing(16)
 
         # Currency inputs with placeholders
-        self.pesos_input = AnimatedInput("Pesos Colombianos (COP):", "#667eea", "Digite o valor em pesos...")
-        self.soles_input = AnimatedInput("Sol Peruano (PEN):", "#764ba2", "Digite o valor em soles...")
-        self.reais_input = AnimatedInput("Reais (BRL):", "#f093fb", "Digite o valor em reais...")
+        self.pesos_input = AnimatedInput("🇨🇴 Pesos Colombianos (COP)", GRADIENT_PURPLE_VIOLET, "Ex: 10000")
+        self.soles_input = AnimatedInput("🇵🇪 Sol Peruano (PEN)", GRADIENT_PINK_RED, "Ex: 100")
+        self.reais_input = AnimatedInput("🇧🇷 Real Brasileiro (BRL)", GRADIENT_CYAN_TURQUOISE, "Ex: 50")
         layout.addWidget(self.pesos_input)
         layout.addWidget(self.soles_input)
         layout.addWidget(self.reais_input)
 
         # Buttons layout
         button_layout = QVBoxLayout()
-        button_layout.setSpacing(12)
+        button_layout.setSpacing(14)
         
-        self.button = AnimatedButton("💱 Converter para Dólar", "#4caf50", "#45a049")
+        self.button = AnimatedButton("💱 Converter para Dólar (USD)", GRADIENT_GREEN, GRADIENT_GREEN_HOVER)
         self.button.clicked.connect(self.convert)
         button_layout.addWidget(self.button)
         
-        self.clear_button = AnimatedButton("🔄 Limpar Campos", "#607d8b", "#546e7a")
+        self.clear_button = AnimatedButton("🔄 Limpar Todos os Campos", GRADIENT_GRAY, GRADIENT_GRAY_HOVER)
         self.clear_button.clicked.connect(self.clear_fields)
         button_layout.addWidget(self.clear_button)
         
         layout.addLayout(button_layout)
 
         # Info label for exchange rates
-        self.info_label = QLabel(f"Taxa de câmbio: 1 USD = {USD_TO_COP:.2f} COP | {USD_TO_PEN:.2f} PEN | {USD_TO_BRL:.2f} BRL")
-        self.info_label.setFont(QFont("Arial", 9))
-        self.info_label.setStyleSheet("color: #888; padding: 5px;")
+        self.info_label = QLabel(f"📊 Taxa de câmbio: 1 USD = {USD_TO_COP:.2f} COP | {USD_TO_PEN:.2f} PEN | {USD_TO_BRL:.2f} BRL")
+        self.info_label.setFont(QFont("Segoe UI", 10))
+        self.info_label.setStyleSheet("color: #6c7a89; padding: 8px; background: rgba(255,255,255,0.05); border-radius: 8px;")
         self.info_label.setAlignment(Qt.AlignCenter)
         layout.addWidget(self.info_label)
 
@@ -245,10 +259,19 @@ class MainWindow(QWidget):
         has_valid_input = pesos > 0 or soles > 0 or reais > 0
 
         if not has_valid_input:
+            self.result_label.setStyleSheet(
+                "color: #721c24; background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #f8d7da, stop:1 #f5c6cb); "
+                "border-radius: 16px; padding: 20px; border: 3px solid #f44336; font-weight: 500;"
+            )
             self.result_label.showAnimated(
-                "<span style='color: #e74c3c; font-weight: bold;'>⚠️ Por favor, insira pelo menos um valor válido!</span>"
+                "<span style='color: #c0392b; font-weight: bold; font-size: 15px;'>⚠️ Por favor, insira pelo menos um valor válido!</span>"
             )
             return
+        else:
+            self.result_label.setStyleSheet(
+                "color: #1e3a28; background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #d4edda, stop:1 #c3e6cb); "
+                "border-radius: 16px; padding: 20px; border: 3px solid #66bb6a; font-weight: 500;"
+            )
 
         psdolar = pesos * COP_TO_USD
         soldolar = soles * PEN_TO_USD
@@ -257,15 +280,15 @@ class MainWindow(QWidget):
         
         result_parts = []
         if pesos > 0:
-            result_parts.append(f"<b>COP {pesos:,.2f}</b> = <b style='color: #27ae60;'>${psdolar:.2f}</b>")
+            result_parts.append(f"<div style='margin: 5px 0;'><b style='font-size: 15px;'>🇨🇴 COP {pesos:,.2f}</b> → <b style='color: #2d8659; font-size: 16px;'>${psdolar:.2f} USD</b></div>")
         if soles > 0:
-            result_parts.append(f"<b>PEN {soles:,.2f}</b> = <b style='color: #27ae60;'>${soldolar:.2f}</b>")
+            result_parts.append(f"<div style='margin: 5px 0;'><b style='font-size: 15px;'>🇵🇪 PEN {soles:,.2f}</b> → <b style='color: #2d8659; font-size: 16px;'>${soldolar:.2f} USD</b></div>")
         if reais > 0:
-            result_parts.append(f"<b>BRL {reais:,.2f}</b> = <b style='color: #27ae60;'>${realdolar:.2f}</b>")
+            result_parts.append(f"<div style='margin: 5px 0;'><b style='font-size: 15px;'>🇧🇷 BRL {reais:,.2f}</b> → <b style='color: #2d8659; font-size: 16px;'>${realdolar:.2f} USD</b></div>")
         
-        result = "<br>".join(result_parts)
+        result = "".join(result_parts)
         if len(result_parts) > 1:
-            result += f"<br><hr style='border: 1px solid #81c784; margin: 10px 0;'><b style='font-size: 18px;'>Total: <span style='color: #2e7d32;'>${total:.2f} USD</span></b>"
+            result += f"<hr style='border: 2px solid #66bb6a; margin: 12px 0;'><div style='font-size: 19px; margin-top: 8px;'><b>💰 Total: <span style='color: #1e7e34; font-size: 22px;'>${total:.2f} USD</span></b></div>"
         
         self.result_label.showAnimated(result)
 
