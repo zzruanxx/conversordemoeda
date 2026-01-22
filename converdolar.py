@@ -3,7 +3,7 @@ from PyQt5.QtCore import Qt, QEasingCurve, QPropertyAnimation, QRect, QTimer
 from PyQt5.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QLabel, QLineEdit, QPushButton, QFrame
 )
-from PyQt5.QtGui import QFont, QColor, QPalette
+from PyQt5.QtGui import QFont, QColor, QPalette, QDoubleValidator
 
 # Exchange rate constants (1 USD =)
 COP_TO_USD = 0.00024  # Colombian Peso to USD
@@ -43,6 +43,10 @@ class AnimatedInput(QFrame):
         self.input.setStyleSheet(
             "background: #ffffff; border: 3px solid transparent; border-radius: 12px; padding: 12px 16px; color: #2c3e50;"
         )
+        self.input.setClearButtonEnabled(True)
+        validator = QDoubleValidator(0.0, 1e12, 2, self.input)
+        validator.setNotation(QDoubleValidator.StandardNotation)
+        self.input.setValidator(validator)
         self.input.textChanged.connect(self.validateInput)
         layout.addWidget(self.label)
         layout.addWidget(self.input)
@@ -197,6 +201,12 @@ class MainWindow(QWidget):
         
         layout.addLayout(button_layout)
 
+        self.hint_label = QLabel("💡 Dica: pressione Enter em qualquer campo para converter rapidamente.")
+        self.hint_label.setFont(QFont("Segoe UI", 10))
+        self.hint_label.setStyleSheet("color: #9aa5b1; padding: 6px 8px;")
+        self.hint_label.setAlignment(Qt.AlignCenter)
+        layout.addWidget(self.hint_label)
+
         # Info label for exchange rates
         self.info_label = QLabel(f"📊 Taxa de câmbio: 1 USD = {USD_TO_COP:.2f} COP | {USD_TO_PEN:.2f} PEN | {USD_TO_BRL:.2f} BRL")
         self.info_label.setFont(QFont("Segoe UI", 10))
@@ -213,12 +223,17 @@ class MainWindow(QWidget):
         # Animate elements on start (like GSAP stagger)
         QTimer.singleShot(100, self.animStart)
 
+        # Atalhos de teclado
+        for inp in (self.pesos_input.input, self.soles_input.input, self.reais_input.input):
+            inp.returnPressed.connect(self.convert)
+
     def clear_fields(self):
         """Clear all input fields and hide result"""
         self.pesos_input.input.clear()
         self.soles_input.input.clear()
         self.reais_input.input.clear()
         self.result_label.hide()
+        self.pesos_input.input.setFocus()
 
     def animStart(self):
         self.title.setWindowOpacity(0)
