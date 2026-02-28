@@ -10,6 +10,10 @@ COP_TO_USD = 0.00024  # Colombian Peso to USD
 PEN_TO_USD = 0.27     # Peruvian Sol to USD
 BRL_TO_USD = 0.18     # Brazilian Real to USD
 
+# Cryptocurrency exchange rates (to USD)
+BTC_TO_USD = 60000.00  # Bitcoin to USD (approximate)
+ETH_TO_USD = 3000.00   # Ethereum to USD (approximate)
+
 # Exchange rate display (for info label)
 USD_TO_COP = 4166.67  # USD to Colombian Peso
 USD_TO_PEN = 3.70     # USD to Peruvian Sol
@@ -21,6 +25,8 @@ GRADIENT_PINK_RED = "qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #f093fb, sto
 GRADIENT_CYAN_TURQUOISE = "qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #4facfe, stop:1 #00f2fe)"
 GRADIENT_GREEN = "qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #56ab2f, stop:1 #a8e063)"
 GRADIENT_GREEN_HOVER = "qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #4a9628, stop:1 #95c956)"
+GRADIENT_ORANGE_GOLD = "qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #f7971e, stop:1 #ffd200)"
+GRADIENT_INDIGO_BLUE = "qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #667eea, stop:1 #4facfe)"
 GRADIENT_GRAY = "qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #434343, stop:1 #000000)"
 GRADIENT_GRAY_HOVER = "qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #525252, stop:1 #1a1a1a)"
 
@@ -151,8 +157,8 @@ class MainWindow(QWidget):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("💸 Conversor de Moedas")
-        self.setGeometry(100, 100, 550, 700)
-        self.setMinimumSize(500, 650)
+        self.setGeometry(100, 100, 550, 950)
+        self.setMinimumSize(500, 850)
         palette = QPalette()
         palette.setColor(QPalette.Window, QColor("#0f1419"))
         self.setPalette(palette)
@@ -169,7 +175,7 @@ class MainWindow(QWidget):
         self.title.setStyleSheet("color: #ffffff;")
         self.title.setAlignment(Qt.AlignCenter)
         
-        self.subtitle = QLabel("Converta suas moedas para dólar americano com facilidade")
+        self.subtitle = QLabel("Converta moedas e criptomoedas para dólar americano")
         self.subtitle.setFont(QFont("Segoe UI", 12))
         self.subtitle.setStyleSheet("color: #8b92a8; font-weight: 400;")
         self.subtitle.setAlignment(Qt.AlignCenter)
@@ -183,9 +189,16 @@ class MainWindow(QWidget):
         self.pesos_input = AnimatedInput("🇨🇴 Pesos Colombianos (COP)", GRADIENT_PURPLE_VIOLET, "Ex: 10000")
         self.soles_input = AnimatedInput("🇵🇪 Sol Peruano (PEN)", GRADIENT_PINK_RED, "Ex: 100")
         self.reais_input = AnimatedInput("🇧🇷 Real Brasileiro (BRL)", GRADIENT_CYAN_TURQUOISE, "Ex: 50")
+
+        # Cryptocurrency inputs
+        self.btc_input = AnimatedInput("₿ Bitcoin (BTC)", GRADIENT_ORANGE_GOLD, "Ex: 0.5")
+        self.eth_input = AnimatedInput("⟠ Ethereum (ETH)", GRADIENT_INDIGO_BLUE, "Ex: 2.0")
+
         layout.addWidget(self.pesos_input)
         layout.addWidget(self.soles_input)
         layout.addWidget(self.reais_input)
+        layout.addWidget(self.btc_input)
+        layout.addWidget(self.eth_input)
 
         # Buttons layout
         button_layout = QVBoxLayout()
@@ -208,7 +221,10 @@ class MainWindow(QWidget):
         layout.addWidget(self.hint_label)
 
         # Info label for exchange rates
-        self.info_label = QLabel(f"📊 Taxa de câmbio: 1 USD = {USD_TO_COP:.2f} COP | {USD_TO_PEN:.2f} PEN | {USD_TO_BRL:.2f} BRL")
+        self.info_label = QLabel(
+            f"📊 1 USD = {USD_TO_COP:.2f} COP | {USD_TO_PEN:.2f} PEN | {USD_TO_BRL:.2f} BRL\n"
+            f"₿ 1 BTC = ${BTC_TO_USD:,.2f} | ⟠ 1 ETH = ${ETH_TO_USD:,.2f}"
+        )
         self.info_label.setFont(QFont("Segoe UI", 10))
         self.info_label.setStyleSheet("color: #6c7a89; padding: 8px; background: rgba(255,255,255,0.05); border-radius: 8px;")
         self.info_label.setAlignment(Qt.AlignCenter)
@@ -224,7 +240,7 @@ class MainWindow(QWidget):
         QTimer.singleShot(100, self.animStart)
 
         # Atalhos de teclado
-        for inp in (self.pesos_input.input, self.soles_input.input, self.reais_input.input):
+        for inp in (self.pesos_input.input, self.soles_input.input, self.reais_input.input, self.btc_input.input, self.eth_input.input):
             inp.returnPressed.connect(self.convert)
 
     def clear_fields(self):
@@ -232,6 +248,8 @@ class MainWindow(QWidget):
         self.pesos_input.input.clear()
         self.soles_input.input.clear()
         self.reais_input.input.clear()
+        self.btc_input.input.clear()
+        self.eth_input.input.clear()
         self.result_label.hide()
         self.pesos_input.input.setFocus()
 
@@ -253,8 +271,10 @@ class MainWindow(QWidget):
         self.pesos_input.animateIn(0)
         self.soles_input.animateIn(200)
         self.reais_input.animateIn(400)
-        self.button.animateIn(600)
-        self.clear_button.animateIn(700)
+        self.btc_input.animateIn(500)
+        self.eth_input.animateIn(600)
+        self.button.animateIn(700)
+        self.clear_button.animateIn(800)
 
     def _parse_currency_input(self, input_text):
         """Parse and validate currency input, returning float value or 0 if invalid"""
@@ -270,8 +290,10 @@ class MainWindow(QWidget):
         pesos = self._parse_currency_input(self.pesos_input.input.text())
         soles = self._parse_currency_input(self.soles_input.input.text())
         reais = self._parse_currency_input(self.reais_input.input.text())
+        btc = self._parse_currency_input(self.btc_input.input.text())
+        eth = self._parse_currency_input(self.eth_input.input.text())
         
-        has_valid_input = pesos > 0 or soles > 0 or reais > 0
+        has_valid_input = pesos > 0 or soles > 0 or reais > 0 or btc > 0 or eth > 0
 
         if not has_valid_input:
             self.result_label.setStyleSheet(
@@ -291,7 +313,9 @@ class MainWindow(QWidget):
         psdolar = pesos * COP_TO_USD
         soldolar = soles * PEN_TO_USD
         realdolar = reais * BRL_TO_USD
-        total = psdolar + soldolar + realdolar
+        btcdolar = btc * BTC_TO_USD
+        ethdolar = eth * ETH_TO_USD
+        total = psdolar + soldolar + realdolar + btcdolar + ethdolar
         
         result_parts = []
         if pesos > 0:
@@ -300,10 +324,14 @@ class MainWindow(QWidget):
             result_parts.append(f"<div style='margin: 5px 0;'><b style='font-size: 15px;'>🇵🇪 PEN {soles:,.2f}</b> → <b style='color: #2d8659; font-size: 16px;'>${soldolar:.2f} USD</b></div>")
         if reais > 0:
             result_parts.append(f"<div style='margin: 5px 0;'><b style='font-size: 15px;'>🇧🇷 BRL {reais:,.2f}</b> → <b style='color: #2d8659; font-size: 16px;'>${realdolar:.2f} USD</b></div>")
+        if btc > 0:
+            result_parts.append(f"<div style='margin: 5px 0;'><b style='font-size: 15px;'>₿ BTC {btc:,.6f}</b> → <b style='color: #2d8659; font-size: 16px;'>${btcdolar:,.2f} USD</b></div>")
+        if eth > 0:
+            result_parts.append(f"<div style='margin: 5px 0;'><b style='font-size: 15px;'>⟠ ETH {eth:,.4f}</b> → <b style='color: #2d8659; font-size: 16px;'>${ethdolar:,.2f} USD</b></div>")
         
         result = "".join(result_parts)
         if len(result_parts) > 1:
-            result += f"<hr style='border: 2px solid #66bb6a; margin: 12px 0;'><div style='font-size: 19px; margin-top: 8px;'><b>💰 Total: <span style='color: #1e7e34; font-size: 22px;'>${total:.2f} USD</span></b></div>"
+            result += f"<hr style='border: 2px solid #66bb6a; margin: 12px 0;'><div style='font-size: 19px; margin-top: 8px;'><b>💰 Total: <span style='color: #1e7e34; font-size: 22px;'>${total:,.2f} USD</span></b></div>"
         
         self.result_label.showAnimated(result)
 
