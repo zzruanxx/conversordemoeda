@@ -10,9 +10,9 @@ COP_TO_USD = 0.00024  # Colombian Peso to USD
 PEN_TO_USD = 0.27     # Peruvian Sol to USD
 BRL_TO_USD = 0.18     # Brazilian Real to USD
 
-# Cryptocurrency exchange rates (to USD)
-BTC_TO_USD = 60000.00  # Bitcoin to USD (approximate)
-ETH_TO_USD = 3000.00   # Ethereum to USD (approximate)
+# Cryptocurrency exchange rates (to USD) - approximate reference values
+BTC_TO_USD = 60000.00  # Bitcoin to USD
+ETH_TO_USD = 3000.00   # Ethereum to USD
 
 # Exchange rate display (for info label)
 USD_TO_COP = 4166.67  # USD to Colombian Peso
