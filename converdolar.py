@@ -38,6 +38,13 @@ def convert_amounts(pesos=0.0, soles=0.0, reais=0.0, btc=0.0, eth=0.0):
     Raises:
         ValueError: when any provided value is non-numeric or negative.
     """
+    friendly_names = {
+        "pesos": "Pesos Colombianos (COP)",
+        "soles": "Sol Peruano (PEN)",
+        "reais": "Real Brasileiro (BRL)",
+        "btc": "Bitcoin (BTC)",
+        "eth": "Ethereum (ETH)",
+    }
     raw_values = {
         "pesos": pesos,
         "soles": soles,
@@ -47,12 +54,13 @@ def convert_amounts(pesos=0.0, soles=0.0, reais=0.0, btc=0.0, eth=0.0):
     }
     values = {}
     for key, raw in raw_values.items():
+        name = friendly_names.get(key, key)
         try:
             numeric = float(raw)
         except (TypeError, ValueError):
-            raise ValueError(f"Valor inválido para {key}")
+            raise ValueError(f"Valor inválido para {name}")
         if numeric < 0:
-            raise ValueError(f"Valor negativo não permitido para {key}")
+            raise ValueError(f"Valor negativo não permitido para {name}")
         values[key] = numeric
 
     usd_values = {
@@ -358,29 +366,21 @@ class MainWindow(QWidget):
             "border-radius: 16px; padding: 20px; border: 3px solid #66bb6a; font-weight: 500;"
         )
 
-        psdolar = conversion["usd"]["pesos"]
-        soldolar = conversion["usd"]["soles"]
-        realdolar = conversion["usd"]["reais"]
-        btcdolar = conversion["usd"]["btc"]
-        ethdolar = conversion["usd"]["eth"]
+        usd = conversion["usd"]
+        inputs = conversion["inputs"]
         total = conversion["total"]
-        pesos = conversion["inputs"]["pesos"]
-        soles = conversion["inputs"]["soles"]
-        reais = conversion["inputs"]["reais"]
-        btc = conversion["inputs"]["btc"]
-        eth = conversion["inputs"]["eth"]
         
         result_parts = []
-        if pesos > 0:
-            result_parts.append(f"<div style='margin: 5px 0;'><b style='font-size: 15px;'>🇨🇴 COP {pesos:,.2f}</b> → <b style='color: #2d8659; font-size: 16px;'>${psdolar:.2f} USD</b></div>")
-        if soles > 0:
-            result_parts.append(f"<div style='margin: 5px 0;'><b style='font-size: 15px;'>🇵🇪 PEN {soles:,.2f}</b> → <b style='color: #2d8659; font-size: 16px;'>${soldolar:.2f} USD</b></div>")
-        if reais > 0:
-            result_parts.append(f"<div style='margin: 5px 0;'><b style='font-size: 15px;'>🇧🇷 BRL {reais:,.2f}</b> → <b style='color: #2d8659; font-size: 16px;'>${realdolar:.2f} USD</b></div>")
-        if btc > 0:
-            result_parts.append(f"<div style='margin: 5px 0;'><b style='font-size: 15px;'>₿ BTC {btc:,.6f}</b> → <b style='color: #2d8659; font-size: 16px;'>${btcdolar:,.2f} USD</b></div>")
-        if eth > 0:
-            result_parts.append(f"<div style='margin: 5px 0;'><b style='font-size: 15px;'>⟠ ETH {eth:,.4f}</b> → <b style='color: #2d8659; font-size: 16px;'>${ethdolar:,.2f} USD</b></div>")
+        if inputs["pesos"] > 0:
+            result_parts.append(f"<div style='margin: 5px 0;'><b style='font-size: 15px;'>🇨🇴 COP {inputs['pesos']:,.2f}</b> → <b style='color: #2d8659; font-size: 16px;'>${usd['pesos']:.2f} USD</b></div>")
+        if inputs["soles"] > 0:
+            result_parts.append(f"<div style='margin: 5px 0;'><b style='font-size: 15px;'>🇵🇪 PEN {inputs['soles']:,.2f}</b> → <b style='color: #2d8659; font-size: 16px;'>${usd['soles']:.2f} USD</b></div>")
+        if inputs["reais"] > 0:
+            result_parts.append(f"<div style='margin: 5px 0;'><b style='font-size: 15px;'>🇧🇷 BRL {inputs['reais']:,.2f}</b> → <b style='color: #2d8659; font-size: 16px;'>${usd['reais']:.2f} USD</b></div>")
+        if inputs["btc"] > 0:
+            result_parts.append(f"<div style='margin: 5px 0;'><b style='font-size: 15px;'>₿ BTC {inputs['btc']:,.6f}</b> → <b style='color: #2d8659; font-size: 16px;'>${usd['btc']:,.2f} USD</b></div>")
+        if inputs["eth"] > 0:
+            result_parts.append(f"<div style='margin: 5px 0;'><b style='font-size: 15px;'>⟠ ETH {inputs['eth']:,.4f}</b> → <b style='color: #2d8659; font-size: 16px;'>${usd['eth']:,.2f} USD</b></div>")
         
         result = "".join(result_parts)
         if len(result_parts) > 1:

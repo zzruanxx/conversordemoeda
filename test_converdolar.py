@@ -231,6 +231,11 @@ class TestCryptoConversion:
 class TestBackendConversionHelper:
     def test_convert_amounts_returns_totals(self):
         data = convert_amounts(pesos=10000, soles=50, reais=10, btc=0.5, eth=1.2)
+        assert pytest.approx(data["inputs"]["pesos"]) == 10000
+        assert pytest.approx(data["inputs"]["soles"]) == 50
+        assert pytest.approx(data["inputs"]["reais"]) == 10
+        assert pytest.approx(data["inputs"]["btc"]) == 0.5
+        assert pytest.approx(data["inputs"]["eth"]) == 1.2
         assert pytest.approx(data["usd"]["pesos"]) == 10000 * COP_TO_USD
         assert pytest.approx(data["usd"]["soles"]) == 50 * PEN_TO_USD
         assert pytest.approx(data["usd"]["reais"]) == 10 * BRL_TO_USD
