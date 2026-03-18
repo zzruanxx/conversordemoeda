@@ -36,19 +36,19 @@ def convert_amounts(pesos=0.0, soles=0.0, reais=0.0, btc=0.0, eth=0.0):
     Backend conversion helper that returns USD amounts and total.
 
     Args:
-        pesos (float/int/str): Valor em Pesos Colombianos (COP).
-        soles (float/int/str): Valor em Soles Peruanos (PEN).
-        reais (float/int/str): Valor em Reais Brasileiros (BRL).
-        btc (float/int/str): Quantidade em Bitcoin (BTC).
-        eth (float/int/str): Quantidade em Ethereum (ETH).
+        pesos (float/int/str): Amount in Colombian Pesos (COP).
+        soles (float/int/str): Amount in Peruvian Soles (PEN).
+        reais (float/int/str): Amount in Brazilian Reais (BRL).
+        btc (float/int/str): Amount in Bitcoin (BTC).
+        eth (float/int/str): Amount in Ethereum (ETH).
 
     Returns:
-        dict: Estrutura contendo os valores originais em ``inputs``, os valores
-        convertidos para USD em ``usd`` e o ``total`` em USD somando todas as moedas.
+        dict: Structure containing original values in ``inputs``, converted USD
+        values in ``usd``, and the summed ``total`` in USD.
 
     Example:
         >>> convert_amounts(pesos=10000, btc=0.1)["usd"]["btc"]
-        0.1 * BTC_TO_USD  # valor em USD gerado a partir do câmbio configurado
+        6000.0  # when BTC_TO_USD = 60000.0
 
     Raises:
         ValueError: when any provided value is not convertible to float (e.g., invalid strings or None) or negative.
@@ -356,7 +356,7 @@ class MainWindow(QWidget):
             )
             return
 
-        # UI requirement: ensure the user provided at least one positive value
+        # UI requirement: ensure the user provided at least one positive value (avoid all-zero inputs)
         has_valid_input = any(value > 0 for value in conversion["inputs"].values())
 
         if not has_valid_input:
