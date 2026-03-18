@@ -251,7 +251,7 @@ class TestBackendConversionHelper:
         with pytest.raises(ValueError):
             convert_amounts(soles="abc")
 
-    def test_convert_handles_zero_values(self):
+    def test_convert_amounts_handles_zero_values(self):
         data = convert_amounts(pesos=0, soles=0, reais=0, btc=0, eth=0)
         assert data["total"] == 0
         assert all(value == 0 for value in data["usd"].values())
