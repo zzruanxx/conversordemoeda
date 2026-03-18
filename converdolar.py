@@ -36,11 +36,11 @@ def convert_amounts(pesos=0.0, soles=0.0, reais=0.0, btc=0.0, eth=0.0):
     Backend conversion helper that returns USD amounts and total.
 
     Args:
-        pesos (float | int | str): Valor em Pesos Colombianos (COP).
-        soles (float | int | str): Valor em Soles Peruanos (PEN).
-        reais (float | int | str): Valor em Reais Brasileiros (BRL).
-        btc (float | int | str): Quantidade em Bitcoin (BTC).
-        eth (float | int | str): Quantidade em Ethereum (ETH).
+        pesos (float/int/str): Valor em Pesos Colombianos (COP).
+        soles (float/int/str): Valor em Soles Peruanos (PEN).
+        reais (float/int/str): Valor em Reais Brasileiros (BRL).
+        btc (float/int/str): Quantidade em Bitcoin (BTC).
+        eth (float/int/str): Quantidade em Ethereum (ETH).
 
     Returns:
         dict: Estrutura contendo os valores originais em ``inputs``, os valores
@@ -48,7 +48,7 @@ def convert_amounts(pesos=0.0, soles=0.0, reais=0.0, btc=0.0, eth=0.0):
 
     Example:
         >>> convert_amounts(pesos=10000, btc=0.1)["usd"]["btc"]
-        6000.0  # considerando BTC_TO_USD = 60000.0
+        0.1 * BTC_TO_USD  # valor em USD gerado a partir do câmbio configurado
 
     Raises:
         ValueError: when any provided value is not convertible to float (e.g., invalid strings or None) or negative.
