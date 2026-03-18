@@ -47,7 +47,8 @@ def convert_amounts(pesos=0.0, soles=0.0, reais=0.0, btc=0.0, eth=0.0):
         convertidos para USD em ``usd`` e o ``total`` em USD somando todas as moedas.
 
     Example:
-        >>> convert_amounts(pesos=10000, btc=0.1)["usd"]["btc"]  # 0.1 * BTC_TO_USD
+        >>> convert_amounts(pesos=10000, btc=0.1)["usd"]["btc"]
+        6000.0  # considerando BTC_TO_USD = 60000.0
 
     Raises:
         ValueError: when any provided value is not convertible to float (e.g., invalid strings or None) or negative.
@@ -55,7 +56,7 @@ def convert_amounts(pesos=0.0, soles=0.0, reais=0.0, btc=0.0, eth=0.0):
     fields = {
         "pesos": ("Pesos Colombianos (COP)", pesos),
         "soles": ("Soles Peruanos (PEN)", soles),
-        "reais": ("Real Brasileiro (BRL)", reais),
+        "reais": ("Reais Brasileiros (BRL)", reais),
         "btc": ("Bitcoin (BTC)", btc),
         "eth": ("Ethereum (ETH)", eth),
     }
