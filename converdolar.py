@@ -30,6 +30,42 @@ GRADIENT_INDIGO_BLUE = "qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #667eea, 
 GRADIENT_GRAY = "qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #434343, stop:1 #000000)"
 GRADIENT_GRAY_HOVER = "qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #525252, stop:1 #1a1a1a)"
 
+
+def convert_amounts(pesos=0.0, soles=0.0, reais=0.0, btc=0.0, eth=0.0):
+    """
+    Backend conversion helper that returns USD amounts and total.
+
+    Raises:
+        ValueError: when any provided value is non-numeric or negative.
+    """
+    raw_values = {
+        "pesos": pesos,
+        "soles": soles,
+        "reais": reais,
+        "btc": btc,
+        "eth": eth,
+    }
+    values = {}
+    for key, raw in raw_values.items():
+        try:
+            numeric = float(raw)
+        except (TypeError, ValueError):
+            raise ValueError(f"Valor inválido para {key}")
+        if numeric < 0:
+            raise ValueError(f"Valor negativo não permitido para {key}")
+        values[key] = numeric
+
+    usd_values = {
+        "pesos": values["pesos"] * COP_TO_USD,
+        "soles": values["soles"] * PEN_TO_USD,
+        "reais": values["reais"] * BRL_TO_USD,
+        "btc": values["btc"] * BTC_TO_USD,
+        "eth": values["eth"] * ETH_TO_USD,
+    }
+    total = sum(usd_values.values())
+    return {"inputs": values, "usd": usd_values, "total": total}
+
+
 class AnimatedInput(QFrame):
     def __init__(self, label_text, color, placeholder, parent=None):
         super().__init__(parent)
@@ -293,7 +329,19 @@ class MainWindow(QWidget):
         btc = self._parse_currency_input(self.btc_input.input.text())
         eth = self._parse_currency_input(self.eth_input.input.text())
         
-        has_valid_input = pesos > 0 or soles > 0 or reais > 0 or btc > 0 or eth > 0
+        try:
+            conversion = convert_amounts(pesos, soles, reais, btc, eth)
+        except ValueError:
+            self.result_label.setStyleSheet(
+                "color: #721c24; background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #f8d7da, stop:1 #f5c6cb); "
+                "border-radius: 16px; padding: 20px; border: 3px solid #f44336; font-weight: 500;"
+            )
+            self.result_label.showAnimated(
+                "<span style='color: #c0392b; font-weight: bold; font-size: 15px;'>⚠️ Valores inválidos. Por favor, insira apenas números positivos.</span>"
+            )
+            return
+
+        has_valid_input = any(value > 0 for value in conversion["inputs"].values())
 
         if not has_valid_input:
             self.result_label.setStyleSheet(
@@ -304,18 +352,23 @@ class MainWindow(QWidget):
                 "<span style='color: #c0392b; font-weight: bold; font-size: 15px;'>⚠️ Por favor, insira pelo menos um valor válido!</span>"
             )
             return
-        else:
-            self.result_label.setStyleSheet(
-                "color: #1e3a28; background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #d4edda, stop:1 #c3e6cb); "
-                "border-radius: 16px; padding: 20px; border: 3px solid #66bb6a; font-weight: 500;"
-            )
 
-        psdolar = pesos * COP_TO_USD
-        soldolar = soles * PEN_TO_USD
-        realdolar = reais * BRL_TO_USD
-        btcdolar = btc * BTC_TO_USD
-        ethdolar = eth * ETH_TO_USD
-        total = psdolar + soldolar + realdolar + btcdolar + ethdolar
+        self.result_label.setStyleSheet(
+            "color: #1e3a28; background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #d4edda, stop:1 #c3e6cb); "
+            "border-radius: 16px; padding: 20px; border: 3px solid #66bb6a; font-weight: 500;"
+        )
+
+        psdolar = conversion["usd"]["pesos"]
+        soldolar = conversion["usd"]["soles"]
+        realdolar = conversion["usd"]["reais"]
+        btcdolar = conversion["usd"]["btc"]
+        ethdolar = conversion["usd"]["eth"]
+        total = conversion["total"]
+        pesos = conversion["inputs"]["pesos"]
+        soles = conversion["inputs"]["soles"]
+        reais = conversion["inputs"]["reais"]
+        btc = conversion["inputs"]["btc"]
+        eth = conversion["inputs"]["eth"]
         
         result_parts = []
         if pesos > 0:
