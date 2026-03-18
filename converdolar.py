@@ -36,7 +36,7 @@ def convert_amounts(pesos=0.0, soles=0.0, reais=0.0, btc=0.0, eth=0.0):
     Backend conversion helper that returns USD amounts and total.
 
     Raises:
-        ValueError: when any provided value is non-numeric (including None) or negative.
+        ValueError: when any provided value is not convertible to float (e.g., strings inválidos ou None) or negative.
     """
     friendly_names = {
         "pesos": "Pesos Colombianos (COP)",
@@ -54,7 +54,7 @@ def convert_amounts(pesos=0.0, soles=0.0, reais=0.0, btc=0.0, eth=0.0):
     }
     values = {}
     for key, raw in raw_values.items():
-        name = friendly_names.get(key, key)
+        name = friendly_names[key]
         try:
             numeric = float(raw)
         except (TypeError, ValueError):
