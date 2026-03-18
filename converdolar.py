@@ -36,7 +36,7 @@ def convert_amounts(pesos=0.0, soles=0.0, reais=0.0, btc=0.0, eth=0.0):
     Backend conversion helper that returns USD amounts and total.
 
     Raises:
-        ValueError: when any provided value is not convertible to float (e.g., strings inválidos ou None) or negative.
+        ValueError: when any provided value is not convertible to float (e.g., invalid strings or None) or negative.
     """
     friendly_names = {
         "pesos": "Pesos Colombianos (COP)",
@@ -349,6 +349,7 @@ class MainWindow(QWidget):
             )
             return
 
+        # UI requirement: ensure the user provided at least one positive value
         has_valid_input = any(value > 0 for value in conversion["inputs"].values())
 
         if not has_valid_input:
