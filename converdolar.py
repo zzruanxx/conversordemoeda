@@ -38,29 +38,21 @@ def convert_amounts(pesos=0.0, soles=0.0, reais=0.0, btc=0.0, eth=0.0):
     Raises:
         ValueError: when any provided value is not convertible to float (e.g., invalid strings or None) or negative.
     """
-    friendly_names = {
-        "pesos": "Pesos Colombianos (COP)",
-        "soles": "Sol Peruano (PEN)",
-        "reais": "Real Brasileiro (BRL)",
-        "btc": "Bitcoin (BTC)",
-        "eth": "Ethereum (ETH)",
-    }
-    raw_values = {
-        "pesos": pesos,
-        "soles": soles,
-        "reais": reais,
-        "btc": btc,
-        "eth": eth,
+    fields = {
+        "pesos": ("Pesos Colombianos (COP)", pesos),
+        "soles": ("Sol Peruano (PEN)", soles),
+        "reais": ("Real Brasileiro (BRL)", reais),
+        "btc": ("Bitcoin (BTC)", btc),
+        "eth": ("Ethereum (ETH)", eth),
     }
     values = {}
-    for key, raw in raw_values.items():
-        name = friendly_names[key]
+    for key, (name, raw) in fields.items():
         try:
             numeric = float(raw)
         except (TypeError, ValueError):
-            raise ValueError(f"Valor inválido para {name}")
+            raise ValueError(f"Valor inválido '{raw}' para {name}")
         if numeric < 0:
-            raise ValueError(f"Valor negativo não permitido para {name}")
+            raise ValueError(f"Valor negativo {numeric} não permitido para {name}")
         values[key] = numeric
 
     usd_values = {
