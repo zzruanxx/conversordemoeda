@@ -244,11 +244,11 @@ class TestBackendConversionHelper:
         assert pytest.approx(data["total"]) == sum(data["usd"].values())
 
     def test_convert_amounts_rejects_negative(self):
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="Valor negativo .*Pesos Colombianos"):
             convert_amounts(pesos=-1)
 
     def test_convert_amounts_rejects_non_numeric(self):
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="Valor inválido 'abc' para Sol Peruano"):
             convert_amounts(soles="abc")
 
     def test_convert_amounts_handles_zero_values(self):
