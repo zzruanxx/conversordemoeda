@@ -30,6 +30,57 @@ GRADIENT_INDIGO_BLUE = "qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #667eea, 
 GRADIENT_GRAY = "qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #434343, stop:1 #000000)"
 GRADIENT_GRAY_HOVER = "qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #525252, stop:1 #1a1a1a)"
 
+
+def convert_amounts(pesos=0.0, soles=0.0, reais=0.0, btc=0.0, eth=0.0):
+    """
+    Backend conversion helper that returns USD amounts and total.
+
+    Args:
+        pesos (float/int/str): Amount in Colombian Pesos (COP).
+        soles (float/int/str): Amount in Peruvian Soles (PEN).
+        reais (float/int/str): Amount in Brazilian Reais (BRL).
+        btc (float/int/str): Amount in Bitcoin (BTC).
+        eth (float/int/str): Amount in Ethereum (ETH).
+
+    Returns:
+        dict: Structure containing original values in ``inputs``, converted USD
+        values in ``usd``, and the summed ``total`` in USD.
+
+    Example:
+        >>> convert_amounts(pesos=10000, btc=0.1)["usd"]["btc"]
+        6000.0  # when BTC_TO_USD = 60000.0
+
+    Raises:
+        ValueError: when any provided value is not convertible to float (e.g., invalid strings or None) or negative.
+    """
+    fields = {
+        "pesos": ("Pesos Colombianos (COP)", pesos),
+        "soles": ("Soles Peruanos (PEN)", soles),
+        "reais": ("Reais Brasileiros (BRL)", reais),
+        "btc": ("Bitcoin (BTC)", btc),
+        "eth": ("Ethereum (ETH)", eth),
+    }
+    values = {}
+    for key, (name, raw) in fields.items():
+        try:
+            numeric = float(raw)
+        except (TypeError, ValueError):
+            raise ValueError(f"Valor inválido '{raw}' para {name}")
+        if numeric < 0:
+            raise ValueError(f"Valor negativo {numeric} não permitido para {name}")
+        values[key] = numeric
+
+    usd_values = {
+        "pesos": values["pesos"] * COP_TO_USD,
+        "soles": values["soles"] * PEN_TO_USD,
+        "reais": values["reais"] * BRL_TO_USD,
+        "btc": values["btc"] * BTC_TO_USD,
+        "eth": values["eth"] * ETH_TO_USD,
+    }
+    total = sum(usd_values.values())
+    return {"inputs": values, "usd": usd_values, "total": total}
+
+
 class AnimatedInput(QFrame):
     def __init__(self, label_text, color, placeholder, parent=None):
         super().__init__(parent)
@@ -293,7 +344,20 @@ class MainWindow(QWidget):
         btc = self._parse_currency_input(self.btc_input.input.text())
         eth = self._parse_currency_input(self.eth_input.input.text())
         
-        has_valid_input = pesos > 0 or soles > 0 or reais > 0 or btc > 0 or eth > 0
+        try:
+            conversion = convert_amounts(pesos, soles, reais, btc, eth)
+        except ValueError:
+            self.result_label.setStyleSheet(
+                "color: #721c24; background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #f8d7da, stop:1 #f5c6cb); "
+                "border-radius: 16px; padding: 20px; border: 3px solid #f44336; font-weight: 500;"
+            )
+            self.result_label.showAnimated(
+                "<span style='color: #c0392b; font-weight: bold; font-size: 15px;'>⚠️ Valores inválidos. Por favor, insira apenas números positivos.</span>"
+            )
+            return
+
+        # UI requirement: ensure the user provided at least one positive value (avoid all-zero inputs)
+        has_valid_input = any(value > 0 for value in conversion["inputs"].values())
 
         if not has_valid_input:
             self.result_label.setStyleSheet(
@@ -304,30 +368,27 @@ class MainWindow(QWidget):
                 "<span style='color: #c0392b; font-weight: bold; font-size: 15px;'>⚠️ Por favor, insira pelo menos um valor válido!</span>"
             )
             return
-        else:
-            self.result_label.setStyleSheet(
-                "color: #1e3a28; background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #d4edda, stop:1 #c3e6cb); "
-                "border-radius: 16px; padding: 20px; border: 3px solid #66bb6a; font-weight: 500;"
-            )
 
-        psdolar = pesos * COP_TO_USD
-        soldolar = soles * PEN_TO_USD
-        realdolar = reais * BRL_TO_USD
-        btcdolar = btc * BTC_TO_USD
-        ethdolar = eth * ETH_TO_USD
-        total = psdolar + soldolar + realdolar + btcdolar + ethdolar
+        self.result_label.setStyleSheet(
+            "color: #1e3a28; background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #d4edda, stop:1 #c3e6cb); "
+            "border-radius: 16px; padding: 20px; border: 3px solid #66bb6a; font-weight: 500;"
+        )
+
+        usd = conversion["usd"]
+        inputs = conversion["inputs"]
+        total = conversion["total"]
         
         result_parts = []
-        if pesos > 0:
-            result_parts.append(f"<div style='margin: 5px 0;'><b style='font-size: 15px;'>🇨🇴 COP {pesos:,.2f}</b> → <b style='color: #2d8659; font-size: 16px;'>${psdolar:.2f} USD</b></div>")
-        if soles > 0:
-            result_parts.append(f"<div style='margin: 5px 0;'><b style='font-size: 15px;'>🇵🇪 PEN {soles:,.2f}</b> → <b style='color: #2d8659; font-size: 16px;'>${soldolar:.2f} USD</b></div>")
-        if reais > 0:
-            result_parts.append(f"<div style='margin: 5px 0;'><b style='font-size: 15px;'>🇧🇷 BRL {reais:,.2f}</b> → <b style='color: #2d8659; font-size: 16px;'>${realdolar:.2f} USD</b></div>")
-        if btc > 0:
-            result_parts.append(f"<div style='margin: 5px 0;'><b style='font-size: 15px;'>₿ BTC {btc:,.6f}</b> → <b style='color: #2d8659; font-size: 16px;'>${btcdolar:,.2f} USD</b></div>")
-        if eth > 0:
-            result_parts.append(f"<div style='margin: 5px 0;'><b style='font-size: 15px;'>⟠ ETH {eth:,.4f}</b> → <b style='color: #2d8659; font-size: 16px;'>${ethdolar:,.2f} USD</b></div>")
+        if inputs["pesos"] > 0:
+            result_parts.append(f"<div style='margin: 5px 0;'><b style='font-size: 15px;'>🇨🇴 COP {inputs['pesos']:,.2f}</b> → <b style='color: #2d8659; font-size: 16px;'>${usd['pesos']:.2f} USD</b></div>")
+        if inputs["soles"] > 0:
+            result_parts.append(f"<div style='margin: 5px 0;'><b style='font-size: 15px;'>🇵🇪 PEN {inputs['soles']:,.2f}</b> → <b style='color: #2d8659; font-size: 16px;'>${usd['soles']:.2f} USD</b></div>")
+        if inputs["reais"] > 0:
+            result_parts.append(f"<div style='margin: 5px 0;'><b style='font-size: 15px;'>🇧🇷 BRL {inputs['reais']:,.2f}</b> → <b style='color: #2d8659; font-size: 16px;'>${usd['reais']:.2f} USD</b></div>")
+        if inputs["btc"] > 0:
+            result_parts.append(f"<div style='margin: 5px 0;'><b style='font-size: 15px;'>₿ BTC {inputs['btc']:,.6f}</b> → <b style='color: #2d8659; font-size: 16px;'>${usd['btc']:,.2f} USD</b></div>")
+        if inputs["eth"] > 0:
+            result_parts.append(f"<div style='margin: 5px 0;'><b style='font-size: 15px;'>⟠ ETH {inputs['eth']:,.4f}</b> → <b style='color: #2d8659; font-size: 16px;'>${usd['eth']:,.2f} USD</b></div>")
         
         result = "".join(result_parts)
         if len(result_parts) > 1:

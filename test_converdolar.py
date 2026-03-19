@@ -4,7 +4,7 @@ from PyQt5.QtWidgets import QApplication
 from PyQt5.QtCore import Qt
 
 from converdolar import (
-    MainWindow, AnimatedInput, AnimatedButton, ResultLabel,
+    MainWindow, AnimatedInput, AnimatedButton, ResultLabel, convert_amounts,
     COP_TO_USD, PEN_TO_USD, BRL_TO_USD, BTC_TO_USD, ETH_TO_USD,
     GRADIENT_GREEN, GRADIENT_GREEN_HOVER,
 )
@@ -148,6 +148,12 @@ class TestCurrencyConversion:
         result = window.result_label.text()
         assert "válido" in result
 
+    def test_negative_input_shows_error(self, window):
+        window.pesos_input.input.setText("-100")
+        window.convert()
+        result = window.result_label.text()
+        assert "inválidos" in result
+
     def test_multiple_currencies_show_total(self, window):
         window.pesos_input.input.setText("10000")
         window.soles_input.input.setText("100")
@@ -218,6 +224,37 @@ class TestCryptoConversion:
         assert "BTC" in result
         assert "ETH" in result
         assert "Total" in result
+
+
+# ---------- Backend conversion helper tests ----------
+
+class TestBackendConversionHelper:
+    def test_convert_amounts_returns_totals(self):
+        data = convert_amounts(pesos=10000, soles=50, reais=10, btc=0.5, eth=1.2)
+        assert pytest.approx(data["inputs"]["pesos"]) == 10000
+        assert pytest.approx(data["inputs"]["soles"]) == 50
+        assert pytest.approx(data["inputs"]["reais"]) == 10
+        assert pytest.approx(data["inputs"]["btc"]) == 0.5
+        assert pytest.approx(data["inputs"]["eth"]) == 1.2
+        assert pytest.approx(data["usd"]["pesos"]) == 10000 * COP_TO_USD
+        assert pytest.approx(data["usd"]["soles"]) == 50 * PEN_TO_USD
+        assert pytest.approx(data["usd"]["reais"]) == 10 * BRL_TO_USD
+        assert pytest.approx(data["usd"]["btc"]) == 0.5 * BTC_TO_USD
+        assert pytest.approx(data["usd"]["eth"]) == 1.2 * ETH_TO_USD
+        assert pytest.approx(data["total"]) == sum(data["usd"].values())
+
+    def test_convert_amounts_rejects_negative(self):
+        with pytest.raises(ValueError, match="Valor negativo .*Pesos Colombianos"):
+            convert_amounts(pesos=-1)
+
+    def test_convert_amounts_rejects_non_numeric(self):
+        with pytest.raises(ValueError, match="Valor inválido 'abc' para Soles Peruanos"):
+            convert_amounts(soles="abc")
+
+    def test_convert_amounts_handles_zero_values(self):
+        data = convert_amounts(pesos=0, soles=0, reais=0, btc=0, eth=0)
+        assert data["total"] == 0
+        assert all(value == 0 for value in data["usd"].values())
 
 
 # ---------- Widget component tests ----------
