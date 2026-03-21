@@ -5,19 +5,17 @@ from PyQt5.QtWidgets import (
 )
 from PyQt5.QtGui import QFont, QColor, QPalette, QDoubleValidator
 
-# Exchange rate constants (1 USD =)
-COP_TO_USD = 0.00024  # Colombian Peso to USD
-PEN_TO_USD = 0.27     # Peruvian Sol to USD
-BRL_TO_USD = 0.18     # Brazilian Real to USD
-
-# Cryptocurrency exchange rates (to USD) - approximate reference values
-BTC_TO_USD = 60000.00  # Bitcoin to USD
-ETH_TO_USD = 3000.00   # Ethereum to USD
-
-# Exchange rate display (for info label)
-USD_TO_COP = 4166.67  # USD to Colombian Peso
-USD_TO_PEN = 3.70     # USD to Peruvian Sol
-USD_TO_BRL = 5.55     # USD to Brazilian Real
+from backend import (
+    COP_TO_USD,
+    PEN_TO_USD,
+    BRL_TO_USD,
+    BTC_TO_USD,
+    ETH_TO_USD,
+    USD_TO_COP,
+    USD_TO_PEN,
+    USD_TO_BRL,
+    convert_amounts,
+)
 
 # UI Gradient color constants
 GRADIENT_PURPLE_VIOLET = "qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #667eea, stop:1 #764ba2)"
@@ -29,58 +27,6 @@ GRADIENT_ORANGE_GOLD = "qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #f7971e, 
 GRADIENT_INDIGO_BLUE = "qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #667eea, stop:1 #4facfe)"
 GRADIENT_GRAY = "qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #434343, stop:1 #000000)"
 GRADIENT_GRAY_HOVER = "qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #525252, stop:1 #1a1a1a)"
-
-
-def convert_amounts(pesos=0.0, soles=0.0, reais=0.0, btc=0.0, eth=0.0):
-    """
-    Backend conversion helper that returns USD amounts and total.
-
-    Args:
-        pesos (float/int/str): Amount in Colombian Pesos (COP).
-        soles (float/int/str): Amount in Peruvian Soles (PEN).
-        reais (float/int/str): Amount in Brazilian Reais (BRL).
-        btc (float/int/str): Amount in Bitcoin (BTC).
-        eth (float/int/str): Amount in Ethereum (ETH).
-
-    Returns:
-        dict: Structure containing original values in ``inputs``, converted USD
-        values in ``usd``, and the summed ``total`` in USD.
-
-    Example:
-        >>> convert_amounts(pesos=10000, btc=0.1)["usd"]["btc"]
-        6000.0  # when BTC_TO_USD = 60000.0
-
-    Raises:
-        ValueError: when any provided value is not convertible to float (e.g., invalid strings or None) or negative.
-    """
-    fields = {
-        "pesos": ("Pesos Colombianos (COP)", pesos),
-        "soles": ("Soles Peruanos (PEN)", soles),
-        "reais": ("Reais Brasileiros (BRL)", reais),
-        "btc": ("Bitcoin (BTC)", btc),
-        "eth": ("Ethereum (ETH)", eth),
-    }
-    values = {}
-    for key, (name, raw) in fields.items():
-        try:
-            numeric = float(raw)
-        except (TypeError, ValueError):
-            raise ValueError(f"Valor inválido '{raw}' para {name}")
-        if numeric < 0:
-            raise ValueError(f"Valor negativo {numeric} não permitido para {name}")
-        values[key] = numeric
-
-    usd_values = {
-        "pesos": values["pesos"] * COP_TO_USD,
-        "soles": values["soles"] * PEN_TO_USD,
-        "reais": values["reais"] * BRL_TO_USD,
-        "btc": values["btc"] * BTC_TO_USD,
-        "eth": values["eth"] * ETH_TO_USD,
-    }
-    total = sum(usd_values.values())
-    return {"inputs": values, "usd": usd_values, "total": total}
-
-
 class AnimatedInput(QFrame):
     def __init__(self, label_text, color, placeholder, parent=None):
         super().__init__(parent)

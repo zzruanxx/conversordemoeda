@@ -1,7 +1,8 @@
 import sys
 import pytest
+
+pytest.importorskip("PyQt5")
 from PyQt5.QtWidgets import QApplication
-from PyQt5.QtCore import Qt
 
 from converdolar import (
     MainWindow, AnimatedInput, AnimatedButton, ResultLabel, convert_amounts,
