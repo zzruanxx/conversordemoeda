@@ -45,6 +45,9 @@ def test_get_rates_contains_expected_keys():
     rates = get_rates()
     for key in ("COP_TO_USD", "PEN_TO_USD", "BRL_TO_USD", "BTC_TO_USD", "ETH_TO_USD"):
         assert key in rates
+    assert "SYMBOLS" in rates
+    assert "UPDATED_AT" in rates
+    assert "SOURCES" in rates
 
 
 def test_api_health_endpoint():
@@ -67,6 +70,10 @@ def test_api_rates_endpoint():
         assert response.status == 200
         assert "rates" in body
         assert "BTC_TO_USD" in body["rates"]
+        assert "updated_at" in body
+        assert "symbols" in body
+        assert "BTC" in body["symbols"]
+        assert "USD" in body["symbols"]
         conn.close()
 
 
@@ -85,8 +92,12 @@ def test_api_convert_endpoint():
         assert response.status == 200
         assert body["inputs"]["pesos"] == 10000
         assert body["inputs"]["btc"] == 0.1
-        assert pytest.approx(body["usd"]["pesos"]) == 10000 * COP_TO_USD
-        assert pytest.approx(body["usd"]["btc"]) == 0.1 * BTC_TO_USD
+        assert body["usd"]["pesos"] > 0
+        assert body["usd"]["btc"] > 0
+        assert "market" in body
+        assert "updated_at" in body["market"]
+        assert "sources" in body["market"]
+        assert "symbols" in body["market"]
         conn.close()
 
 

@@ -15,6 +15,7 @@ from backend import (
     USD_TO_PEN,
     USD_TO_BRL,
     convert_amounts,
+    get_market_snapshot,
 )
 
 # UI Gradient color constants
@@ -156,6 +157,17 @@ class MainWindow(QWidget):
         self.setWindowTitle("💸 Conversor de Moedas")
         self.setGeometry(100, 100, 550, 950)
         self.setMinimumSize(500, 850)
+        self.current_rates_to_usd = {
+            "COP": COP_TO_USD,
+            "PEN": PEN_TO_USD,
+            "BRL": BRL_TO_USD,
+            "BTC": BTC_TO_USD,
+            "ETH": ETH_TO_USD,
+            "USD": 1.0,
+            "USDT": 1.0,
+            "EUR": 1.08,
+        }
+        self.last_market_timestamp = None
         palette = QPalette()
         palette.setColor(QPalette.Window, QColor("#0f1419"))
         self.setPalette(palette)
@@ -218,10 +230,7 @@ class MainWindow(QWidget):
         layout.addWidget(self.hint_label)
 
         # Info label for exchange rates
-        self.info_label = QLabel(
-            f"📊 1 USD = {USD_TO_COP:.2f} COP | {USD_TO_PEN:.2f} PEN | {USD_TO_BRL:.2f} BRL\n"
-            f"₿ 1 BTC = ${BTC_TO_USD:,.2f} | ⟠ 1 ETH = ${ETH_TO_USD:,.2f}"
-        )
+        self.info_label = QLabel(self._build_market_info_text())
         self.info_label.setFont(QFont("Segoe UI", 10))
         self.info_label.setStyleSheet("color: #6c7a89; padding: 8px; background: rgba(255,255,255,0.05); border-radius: 8px;")
         self.info_label.setAlignment(Qt.AlignCenter)
@@ -236,9 +245,44 @@ class MainWindow(QWidget):
         # Animate elements on start (like GSAP stagger)
         QTimer.singleShot(100, self.animStart)
 
+        # Avoid network call during startup and tests: first paint static/cached data,
+        # then refresh asynchronously and keep updating periodically.
+        self.refresh_market_info(allow_network=False)
+        QTimer.singleShot(300, lambda: self.refresh_market_info(allow_network=True))
+        self.market_timer = QTimer(self)
+        self.market_timer.setInterval(20000)
+        self.market_timer.timeout.connect(lambda: self.refresh_market_info(allow_network=True))
+        self.market_timer.start()
+
         # Atalhos de teclado
         for inp in (self.pesos_input.input, self.soles_input.input, self.reais_input.input, self.btc_input.input, self.eth_input.input):
             inp.returnPressed.connect(self.convert)
+
+    def _build_market_info_text(self):
+        timestamp = self.last_market_timestamp or "sem atualização online"
+        return (
+            f"📊 1 USD = {1.0 / self.current_rates_to_usd.get('COP', COP_TO_USD):.2f} COP | "
+            f"{1.0 / self.current_rates_to_usd.get('PEN', PEN_TO_USD):.2f} PEN | "
+            f"{1.0 / self.current_rates_to_usd.get('BRL', BRL_TO_USD):.2f} BRL\n"
+            f"₿ 1 BTC = ${self.current_rates_to_usd.get('BTC', BTC_TO_USD):,.2f} | "
+            f"⟠ 1 ETH = ${self.current_rates_to_usd.get('ETH', ETH_TO_USD):,.2f} | "
+            f"🕒 Atualizado: {timestamp}"
+        )
+
+    def refresh_market_info(self, allow_network=True):
+        try:
+            snapshot = get_market_snapshot(allow_network=allow_network)
+            rates = snapshot.get("rates_to_usd", {})
+            for symbol in ("COP", "PEN", "BRL", "BTC", "ETH", "USD", "USDT", "EUR"):
+                raw = rates.get(symbol)
+                if isinstance(raw, (int, float)) and raw > 0:
+                    self.current_rates_to_usd[symbol] = float(raw)
+            self.last_market_timestamp = str(snapshot.get("updated_at") or self.last_market_timestamp or "N/A")
+        except Exception:
+            # Keep last known values if market refresh fails.
+            pass
+
+        self.info_label.setText(self._build_market_info_text())
 
     def clear_fields(self):
         """Clear all input fields and hide result"""
@@ -291,7 +335,14 @@ class MainWindow(QWidget):
         eth = self._parse_currency_input(self.eth_input.input.text())
         
         try:
-            conversion = convert_amounts(pesos, soles, reais, btc, eth)
+            conversion = convert_amounts(
+                pesos,
+                soles,
+                reais,
+                btc,
+                eth,
+                rates_to_usd=self.current_rates_to_usd,
+            )
         except ValueError:
             self.result_label.setStyleSheet(
                 "color: #721c24; background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #f8d7da, stop:1 #f5c6cb); "

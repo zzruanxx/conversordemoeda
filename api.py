@@ -5,7 +5,7 @@ from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from typing import Any, Dict
 
-from backend import convert_amounts, get_rates
+from backend import convert_amounts, get_market_snapshot, get_rates
 
 
 class ConversionAPIHandler(BaseHTTPRequestHandler):
@@ -22,7 +22,15 @@ class ConversionAPIHandler(BaseHTTPRequestHandler):
             self._send_json({"status": "ok"})
             return
         if self.path == "/rates":
-            self._send_json({"rates": get_rates()})
+            rates = get_rates(allow_network=True)
+            self._send_json(
+                {
+                    "rates": rates,
+                    "updated_at": rates.get("UPDATED_AT"),
+                    "symbols": rates.get("SYMBOLS", []),
+                    "sources": rates.get("SOURCES", {}),
+                }
+            )
             return
         self._send_json({"error": "Not Found"}, status=HTTPStatus.NOT_FOUND)
 
@@ -54,13 +62,20 @@ class ConversionAPIHandler(BaseHTTPRequestHandler):
             return
 
         try:
+            snapshot = get_market_snapshot(allow_network=True)
             result = convert_amounts(
                 pesos=data.get("pesos", 0),
                 soles=data.get("soles", 0),
                 reais=data.get("reais", 0),
                 btc=data.get("btc", 0),
                 eth=data.get("eth", 0),
+                rates_to_usd=snapshot.get("rates_to_usd", {}),
             )
+            result["market"] = {
+                "updated_at": snapshot.get("updated_at"),
+                "sources": snapshot.get("sources", {}),
+                "symbols": snapshot.get("symbols", []),
+            }
         except ValueError as exc:
             self._send_json({"error": str(exc)}, status=HTTPStatus.BAD_REQUEST)
             return
