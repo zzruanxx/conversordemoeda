@@ -12,7 +12,9 @@ from backend import (
     COP_TO_USD,
     ETH_TO_USD,
     PEN_TO_USD,
+    convert_asset_amount,
     convert_amounts,
+    get_asset_catalog,
     get_rates,
 )
 
@@ -42,12 +44,67 @@ def test_convert_amounts_backend_values():
 
 
 def test_get_rates_contains_expected_keys():
-    rates = get_rates()
+    rates = get_rates(allow_network=False)
     for key in ("COP_TO_USD", "PEN_TO_USD", "BRL_TO_USD", "BTC_TO_USD", "ETH_TO_USD"):
         assert key in rates
     assert "SYMBOLS" in rates
     assert "UPDATED_AT" in rates
     assert "SOURCES" in rates
+    assert "ASSET_CATALOG" in rates
+
+
+def test_convert_asset_amount_uses_usd_base_formula():
+    rates = {
+        "USD": 1.0,
+        "BRL": 0.2,
+        "BTC": 50000.0,
+        "ETH": 2500.0,
+        "USDT": 1.0,
+        "EUR": 1.1,
+    }
+    quote = convert_asset_amount(
+        amount=1000,
+        from_symbol="BRL",
+        to_symbol="BTC",
+        rates_to_usd=rates,
+    )
+
+    assert quote["from_symbol"] == "BRL"
+    assert quote["to_symbol"] == "BTC"
+    assert pytest.approx(quote["result"]["gross"]) == (1000 * 0.2) / 50000.0
+    assert pytest.approx(quote["result"]["net"]) == (1000 * 0.2) / 50000.0
+
+
+def test_convert_asset_amount_applies_fee_and_spread():
+    rates = {"USD": 1.0, "BRL": 0.2, "BTC": 50000.0}
+    quote = convert_asset_amount(
+        amount=1000,
+        from_symbol="BRL",
+        to_symbol="BTC",
+        fee_percent=1,
+        spread_percent=0.5,
+        rates_to_usd=rates,
+    )
+
+    gross = (1000 * 0.2) / 50000.0
+    after_spread = gross * (1 - 0.005)
+    expected_net = after_spread * (1 - 0.01)
+
+    assert pytest.approx(quote["result"]["gross"]) == gross
+    assert pytest.approx(quote["result"]["net"]) == expected_net
+    assert quote["result"]["fee_amount"] > 0
+    assert quote["result"]["spread_amount"] > 0
+
+
+def test_get_asset_catalog_includes_dynamic_rates():
+    catalog = get_asset_catalog(
+        rates_to_usd={"USD": 1.0, "BRL": 0.2, "BTC": 50000.0, "ETH": 2500.0}
+    )
+    assert "assets" in catalog
+    assert "BTC" in catalog["assets"]
+    assert "BRL" in catalog["assets"]
+    assert catalog["assets"]["BTC"]["category"] == "crypto"
+    assert catalog["assets"]["BRL"]["category"] == "fiat"
 
 
 def test_api_health_endpoint():
@@ -77,6 +134,19 @@ def test_api_rates_endpoint():
         conn.close()
 
 
+def test_api_assets_endpoint():
+    with APIServer() as srv:
+        conn = HTTPConnection(srv.host, srv.port, timeout=5)
+        conn.request("GET", "/assets")
+        response = conn.getresponse()
+        body = json.loads(response.read().decode("utf-8"))
+        assert response.status == 200
+        assert "assets" in body
+        assert "BTC" in body["assets"]
+        assert "USD" in body["assets"]
+        conn.close()
+
+
 def test_api_convert_endpoint():
     payload = {"pesos": 10000, "btc": 0.1}
     with APIServer() as srv:
@@ -98,6 +168,69 @@ def test_api_convert_endpoint():
         assert "updated_at" in body["market"]
         assert "sources" in body["market"]
         assert "symbols" in body["market"]
+        conn.close()
+
+
+def test_api_convert_endpoint_supports_fee_and_spread():
+    payload = {"pesos": 10000, "fee_percent": 1, "spread_percent": 0.5}
+    with APIServer() as srv:
+        conn = HTTPConnection(srv.host, srv.port, timeout=5)
+        conn.request(
+            "POST",
+            "/convert",
+            body=json.dumps(payload),
+            headers={"Content-Type": "application/json"},
+        )
+        response = conn.getresponse()
+        body = json.loads(response.read().decode("utf-8"))
+        assert response.status == 200
+        assert "pricing" in body
+        assert body["pricing"]["fee_percent"] == 1
+        assert body["pricing"]["spread_percent"] == 0.5
+        conn.close()
+
+
+def test_api_quote_endpoint(monkeypatch):
+    snapshot = {
+        "rates_to_usd": {
+            "USD": 1.0,
+            "USDT": 1.0,
+            "BRL": 0.2,
+            "EUR": 1.1,
+            "COP": 0.00024,
+            "PEN": 0.27,
+            "BTC": 50000.0,
+            "ETH": 2500.0,
+        },
+        "updated_at": "2026-03-28T12:00:00Z",
+        "updated_at_unix": 1774708800,
+        "sources": {"crypto": "test", "fiat": "test"},
+        "symbols": ["BTC", "ETH", "USDT", "BRL", "USD", "EUR"],
+    }
+    monkeypatch.setattr("api.get_market_snapshot", lambda allow_network=True: snapshot)
+
+    with APIServer() as srv:
+        conn = HTTPConnection(srv.host, srv.port, timeout=5)
+        conn.request("GET", "/quote?from=BRL&to=BTC&amount=1000&fee_percent=1&spread_percent=0.5")
+        response = conn.getresponse()
+        body = json.loads(response.read().decode("utf-8"))
+        assert response.status == 200
+        assert body["from_symbol"] == "BRL"
+        assert body["to_symbol"] == "BTC"
+        assert body["result"]["net"] > 0
+        assert "market" in body
+        assert body["market"]["updated_at"] == "2026-03-28T12:00:00Z"
+        conn.close()
+
+
+def test_api_quote_requires_minimum_params():
+    with APIServer() as srv:
+        conn = HTTPConnection(srv.host, srv.port, timeout=5)
+        conn.request("GET", "/quote?to=BTC")
+        response = conn.getresponse()
+        body = json.loads(response.read().decode("utf-8"))
+        assert response.status == 400
+        assert "error" in body
         conn.close()
 
 

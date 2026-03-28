@@ -4,8 +4,15 @@ import json
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from typing import Any, Dict
+from urllib.parse import parse_qs, urlparse
 
-from backend import convert_amounts, get_market_snapshot, get_rates
+from backend import (
+    convert_amounts,
+    convert_asset_amount,
+    get_asset_catalog,
+    get_market_snapshot,
+    get_rates,
+)
 
 
 class ConversionAPIHandler(BaseHTTPRequestHandler):
@@ -18,10 +25,13 @@ class ConversionAPIHandler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def do_GET(self) -> None:
-        if self.path == "/health":
+        parsed = urlparse(self.path)
+        route = parsed.path
+
+        if route == "/health":
             self._send_json({"status": "ok"})
             return
-        if self.path == "/rates":
+        if route == "/rates":
             rates = get_rates(allow_network=True)
             self._send_json(
                 {
@@ -31,6 +41,48 @@ class ConversionAPIHandler(BaseHTTPRequestHandler):
                     "sources": rates.get("SOURCES", {}),
                 }
             )
+            return
+        if route == "/assets":
+            catalog = get_asset_catalog(allow_network=True)
+            self._send_json(catalog)
+            return
+        if route == "/quote":
+            params = parse_qs(parsed.query)
+            from_symbol = params.get("from", [None])[0]
+            to_symbol = params.get("to", ["USD"])[0]
+            amount = params.get("amount", [None])[0]
+            fee_percent = params.get("fee_percent", ["0"])[0]
+            spread_percent = params.get("spread_percent", ["0"])[0]
+
+            if not from_symbol or amount is None:
+                self._send_json(
+                    {
+                        "error": "Required query params: from, amount. Optional: to, fee_percent, spread_percent"
+                    },
+                    status=HTTPStatus.BAD_REQUEST,
+                )
+                return
+
+            try:
+                snapshot = get_market_snapshot(allow_network=True)
+                quote = convert_asset_amount(
+                    amount=amount,
+                    from_symbol=from_symbol,
+                    to_symbol=to_symbol,
+                    fee_percent=fee_percent,
+                    spread_percent=spread_percent,
+                    rates_to_usd=snapshot.get("rates_to_usd", {}),
+                )
+            except ValueError as exc:
+                self._send_json({"error": str(exc)}, status=HTTPStatus.BAD_REQUEST)
+                return
+
+            quote["market"] = {
+                "updated_at": snapshot.get("updated_at"),
+                "sources": snapshot.get("sources", {}),
+                "symbols": snapshot.get("symbols", []),
+            }
+            self._send_json(quote)
             return
         self._send_json({"error": "Not Found"}, status=HTTPStatus.NOT_FOUND)
 
@@ -70,6 +122,8 @@ class ConversionAPIHandler(BaseHTTPRequestHandler):
                 btc=data.get("btc", 0),
                 eth=data.get("eth", 0),
                 rates_to_usd=snapshot.get("rates_to_usd", {}),
+                fee_percent=data.get("fee_percent", 0),
+                spread_percent=data.get("spread_percent", 0),
             )
             result["market"] = {
                 "updated_at": snapshot.get("updated_at"),
