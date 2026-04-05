@@ -46,9 +46,18 @@ _DEFAULT_SYMBOLS = ["BRL", "COP", "PEN", "USD", "EUR", "BTC", "ETH", "USDT"]
 
 
 def _fade_in(widget, duration: int = 400) -> None:
-    """Fade a widget in using QGraphicsOpacityEffect (works for any widget)."""
+    """Fade a widget in using QGraphicsOpacityEffect (works for any child widget).
+
+    If a previous fade animation is already in progress on the same widget it is
+    stopped first, so repeated calls are safe and produce a clean restart.
+    """
+    # Stop any in-progress animation to avoid stacked opacity effects.
+    existing = getattr(widget, "_fade_in_anim", None)
+    if existing is not None:
+        existing.stop()
+
     effect = QGraphicsOpacityEffect(widget)
-    widget.setGraphicsEffect(effect)
+    widget.setGraphicsEffect(effect)  # Qt takes ownership; old effect is deleted
     anim = QPropertyAnimation(effect, b"opacity")
     anim.setStartValue(0.0)
     anim.setEndValue(1.0)
@@ -56,7 +65,7 @@ def _fade_in(widget, duration: int = 400) -> None:
     anim.setEasingCurve(QEasingCurve.InOutQuad)
     widget.show()
     anim.start()
-    widget._fade_in_anim = anim  # prevent GC — unique name avoids collision
+    widget._fade_in_anim = anim  # keep reference so Python GC doesn't collect it
 
 
 # ─── Background market-refresh thread ────────────────────────────────────────
@@ -768,7 +777,12 @@ class MainWindow(QWidget):
         self.info_label.setText(self._build_market_info_text())
 
     def _start_live_refresh(self) -> None:
-        """Launch a background thread to fetch live rates without blocking the UI."""
+        """Launch a background thread to fetch live rates without blocking the UI.
+
+        The `_refresh_in_progress` flag is safe to use without a mutex here because
+        both this method and the `_on_market_data` / `_on_market_fetch_failed` slots
+        are always invoked on the Qt main thread (via QTimer and queued signals).
+        """
         if getattr(self, "_refresh_in_progress", False):
             return
         self._refresh_in_progress = True
