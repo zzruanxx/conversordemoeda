@@ -56,7 +56,7 @@ def _fade_in(widget, duration: int = 400) -> None:
     anim.setEasingCurve(QEasingCurve.InOutQuad)
     widget.show()
     anim.start()
-    widget._fade_anim = anim  # prevent GC
+    widget._fade_in_anim = anim  # prevent GC — unique name avoids collision
 
 
 # ─── Background market-refresh thread ────────────────────────────────────────
@@ -64,13 +64,14 @@ class MarketRefreshThread(QThread):
     """Fetches a fresh market snapshot in a background thread."""
 
     data_ready = pyqtSignal(dict)
+    fetch_failed = pyqtSignal()
 
     def run(self) -> None:
         try:
             snapshot = get_market_snapshot(allow_network=True)
             self.data_ready.emit(snapshot)
         except Exception:
-            pass
+            self.fetch_failed.emit()
 
 
 # ─── Live / cache / offline status indicator ─────────────────────────────────
@@ -89,7 +90,7 @@ class StatusDot(QWidget):
         self.dot = QLabel("●")
         self.dot.setFont(QFont("Segoe UI", 12))
         self.dot.setStyleSheet("background: transparent;")
-        self.text = QLabel("Conectando…")
+        self.text = QLabel()
         self.text.setFont(QFont("Segoe UI", 10))
         self.text.setStyleSheet("background: transparent;")
         row.addWidget(self.dot)
@@ -768,15 +769,20 @@ class MainWindow(QWidget):
 
     def _start_live_refresh(self) -> None:
         """Launch a background thread to fetch live rates without blocking the UI."""
-        if hasattr(self, "_refresh_thread") and self._refresh_thread.isRunning():
+        if getattr(self, "_refresh_in_progress", False):
             return
+        self._refresh_in_progress = True
         self.status_dot.set_state(StatusDot.CACHE)
-        self._refresh_thread = MarketRefreshThread()
-        self._refresh_thread.data_ready.connect(self._on_market_data)
-        self._refresh_thread.start()
+        thread = MarketRefreshThread(self)
+        thread.data_ready.connect(self._on_market_data)
+        thread.fetch_failed.connect(self._on_market_fetch_failed)
+        thread.finished.connect(thread.deleteLater)
+        self._refresh_thread = thread
+        thread.start()
 
     def _on_market_data(self, snapshot: dict) -> None:
         """Handle fresh market data received from the background thread."""
+        self._refresh_in_progress = False
         rates = snapshot.get("rates_to_usd", {})
         for sym in ("COP", "PEN", "BRL", "BTC", "ETH", "USD", "USDT", "EUR"):
             raw = rates.get(sym)
@@ -795,6 +801,11 @@ class MainWindow(QWidget):
         symbols = list(snapshot.get("symbols", []))
         if symbols:
             self.universal_panel.update_symbols(symbols)
+
+    def _on_market_fetch_failed(self) -> None:
+        """Called when the background refresh thread could not reach any provider."""
+        self._refresh_in_progress = False
+        self.status_dot.set_state(StatusDot.OFFLINE)
 
     # ── UI actions ────────────────────────────────────────────────────────────
 
