@@ -6,6 +6,7 @@ from PyQt5.QtWidgets import QApplication
 
 from converdolar import (
     MainWindow, AnimatedInput, AnimatedButton, ResultLabel, convert_amounts,
+    UniversalConverterPanel, StatusDot,
     COP_TO_USD, PEN_TO_USD, BRL_TO_USD, BTC_TO_USD, ETH_TO_USD,
     GRADIENT_GREEN, GRADIENT_GREEN_HOVER,
 )
@@ -282,3 +283,264 @@ class TestWidgetComponents:
         rl.showAnimated("Test Result")
         assert rl.text() == "Test Result"
         assert rl.isVisible()
+
+
+# ---------- StatusDot widget tests ----------
+
+class TestStatusDot:
+    def test_initial_state_is_offline(self):
+        dot = StatusDot()
+        assert "Offline" in dot.text.text()
+
+    def test_set_state_live(self):
+        dot = StatusDot()
+        dot.set_state(StatusDot.LIVE)
+        assert "vivo" in dot.text.text() or "Ao vivo" in dot.text.text()
+
+    def test_set_state_cache(self):
+        dot = StatusDot()
+        dot.set_state(StatusDot.CACHE)
+        assert "Cache" in dot.text.text()
+
+    def test_set_state_offline(self):
+        dot = StatusDot()
+        dot.set_state(StatusDot.LIVE)
+        dot.set_state(StatusDot.OFFLINE)
+        assert "Offline" in dot.text.text()
+
+    def test_set_unknown_state_defaults_to_offline_style(self):
+        dot = StatusDot()
+        dot.set_state("unknown_state")
+        assert "Offline" in dot.text.text()
+
+
+# ---------- UniversalConverterPanel tests ----------
+
+_DEFAULT_RATES = {
+    "BRL": BRL_TO_USD,
+    "COP": COP_TO_USD,
+    "PEN": PEN_TO_USD,
+    "USD": 1.0,
+    "EUR": 1.08,
+    "BTC": BTC_TO_USD,
+    "ETH": ETH_TO_USD,
+    "USDT": 1.0,
+}
+
+
+@pytest.fixture
+def panel():
+    return UniversalConverterPanel(dict(_DEFAULT_RATES))
+
+
+class TestUniversalConverterPanel:
+    def test_panel_has_from_combo(self, panel):
+        assert panel.from_combo is not None
+
+    def test_panel_has_to_combo(self, panel):
+        assert panel.to_combo is not None
+
+    def test_panel_has_amount_input(self, panel):
+        assert panel.amount_input is not None
+
+    def test_panel_has_convert_button(self, panel):
+        assert panel.convert_btn is not None
+
+    def test_panel_has_swap_button(self, panel):
+        assert panel.swap_btn is not None
+
+    def test_panel_combos_populated(self, panel):
+        assert panel.from_combo.count() > 0
+        assert panel.to_combo.count() > 0
+
+    def test_panel_default_from_currency(self, panel):
+        assert panel.from_combo.currentData() == "BRL"
+
+    def test_panel_default_to_currency(self, panel):
+        assert panel.to_combo.currentData() == "USD"
+
+    def test_do_convert_zero_amount_shows_error(self, panel):
+        panel.amount_input.setText("0")
+        panel.do_convert()
+        assert "zero" in panel.result_main.text().lower() or ">" in panel.result_main.text()
+        assert not panel.result_main.isHidden()
+
+    def test_do_convert_empty_amount_shows_error(self, panel):
+        panel.amount_input.setText("")
+        panel.do_convert()
+        assert not panel.result_main.isHidden()
+
+    def test_do_convert_valid_amount_shows_result(self, panel):
+        panel.amount_input.setText("1000")
+        panel.from_combo.setCurrentIndex(panel.from_combo.findData("BRL"))
+        panel.to_combo.setCurrentIndex(panel.to_combo.findData("USD"))
+        panel.do_convert()
+        text = panel.result_main.text()
+        assert "BRL" in text
+        assert "USD" in text
+        assert not panel.result_main.isHidden()
+
+    def test_do_convert_shows_copy_button_after_success(self, panel):
+        panel.amount_input.setText("500")
+        panel.from_combo.setCurrentIndex(panel.from_combo.findData("BRL"))
+        panel.to_combo.setCurrentIndex(panel.to_combo.findData("USD"))
+        panel.do_convert()
+        assert not panel.copy_btn.isHidden()
+
+    def test_do_convert_with_fee_shows_breakdown(self, panel):
+        panel.amount_input.setText("1000")
+        panel.fee_input.setText("1")
+        panel.spread_input.setText("0.5")
+        panel.from_combo.setCurrentIndex(panel.from_combo.findData("BRL"))
+        panel.to_combo.setCurrentIndex(panel.to_combo.findData("USD"))
+        panel.do_convert()
+        assert not panel.result_breakdown.isHidden()
+        assert "Bruto" in panel.result_breakdown.text()
+
+    def test_do_convert_without_fee_hides_breakdown(self, panel):
+        panel.amount_input.setText("1000")
+        panel.fee_input.setText("0")
+        panel.spread_input.setText("0")
+        panel.from_combo.setCurrentIndex(panel.from_combo.findData("BRL"))
+        panel.to_combo.setCurrentIndex(panel.to_combo.findData("USD"))
+        panel.do_convert()
+        assert not panel.result_breakdown.isVisible()
+
+    def test_swap_currencies_exchanges_combos(self, panel):
+        panel.from_combo.setCurrentIndex(panel.from_combo.findData("BRL"))
+        panel.to_combo.setCurrentIndex(panel.to_combo.findData("USD"))
+        panel.swap_currencies()
+        assert panel.from_combo.currentData() == "USD"
+        assert panel.to_combo.currentData() == "BRL"
+
+    def test_toggle_settings_shows_frame(self, panel):
+        assert panel.settings_frame.isHidden()
+        panel._toggle_settings(True)
+        assert not panel.settings_frame.isHidden()
+
+    def test_toggle_settings_hides_frame(self, panel):
+        panel._toggle_settings(True)
+        panel._toggle_settings(False)
+        assert panel.settings_frame.isHidden()
+
+    def test_update_rates_changes_internal_rates(self, panel):
+        new_rates = dict(_DEFAULT_RATES)
+        new_rates["BTC"] = 99999.0
+        panel.update_rates(new_rates)
+        assert panel._rates["BTC"] == 99999.0
+
+    def test_update_symbols_repopulates_combos(self, panel):
+        panel.update_symbols(["USD", "EUR"])
+        symbols = [panel.from_combo.itemData(i) for i in range(panel.from_combo.count())]
+        assert "USD" in symbols
+        assert "EUR" in symbols
+
+    def test_update_symbols_empty_list_does_not_repopulate(self, panel):
+        original_count = panel.from_combo.count()
+        panel.update_symbols([])
+        assert panel.from_combo.count() == original_count
+
+    def test_copy_button_hidden_initially(self, panel):
+        assert not panel.copy_btn.isVisible()
+
+    def test_result_breakdown_hidden_initially(self, panel):
+        assert not panel.result_breakdown.isVisible()
+
+    def test_result_main_hidden_initially(self, panel):
+        assert not panel.result_main.isVisible()
+
+
+# ---------- AnimatedInput validation tests ----------
+
+class TestAnimatedInputValidation:
+    def test_validate_valid_number_sets_green_border(self):
+        ai = AnimatedInput("Label", "#333333", "placeholder")
+        ai.input.setText("123.45")
+        ai.validateInput()
+        style = ai.input.styleSheet()
+        assert "#27ae60" in style
+
+    def test_validate_invalid_text_sets_red_border(self):
+        ai = AnimatedInput("Label", "#333333", "placeholder")
+        # Bypass validator to set invalid text directly
+        ai.input.setValidator(None)
+        ai.input.setText("abc")
+        ai.validateInput()
+        style = ai.input.styleSheet()
+        assert "#e74c3c" in style
+
+    def test_validate_empty_text_resets_border(self):
+        ai = AnimatedInput("Label", "#333333", "placeholder")
+        ai.input.setText("100")
+        ai.validateInput()
+        ai.input.setText("")
+        ai.validateInput()
+        style = ai.input.styleSheet()
+        assert "transparent" in style
+
+
+# ---------- MainWindow market data callback tests ----------
+
+class TestMainWindowMarketData:
+    def test_on_market_data_updates_rates(self, window):
+        snapshot = {
+            "rates_to_usd": {"BTC": 75000.0, "BRL": 0.15, "USD": 1.0, "EUR": 1.1, "COP": 0.00025, "PEN": 0.28, "ETH": 3500.0, "USDT": 1.0},
+            "updated_at": "2026-01-01T00:00:00Z",
+            "sources": {"crypto": "test", "fiat": "test"},
+            "symbols": ["BTC", "ETH", "BRL", "USD"],
+        }
+        window._on_market_data(snapshot)
+        assert window.current_rates_to_usd["BTC"] == 75000.0
+        assert window.current_rates_to_usd["BRL"] == 0.15
+
+    def test_on_market_data_updates_timestamp(self, window):
+        snapshot = {
+            "rates_to_usd": {"USD": 1.0},
+            "updated_at": "2026-06-15T12:00:00Z",
+            "sources": {"crypto": "live-src", "fiat": "live-src"},
+            "symbols": ["USD"],
+        }
+        window._on_market_data(snapshot)
+        assert window.last_market_timestamp == "2026-06-15T12:00:00Z"
+
+    def test_on_market_data_live_source_sets_live_dot(self, window):
+        snapshot = {
+            "rates_to_usd": {"USD": 1.0},
+            "updated_at": "2026-06-15T12:00:00Z",
+            "sources": {"crypto": "coingecko", "fiat": "frankfurter"},
+            "symbols": ["USD"],
+        }
+        window._on_market_data(snapshot)
+        assert "vivo" in window.status_dot.text.text() or "Ao vivo" in window.status_dot.text.text()
+
+    def test_on_market_data_static_fallback_sets_offline_dot(self, window):
+        snapshot = {
+            "rates_to_usd": {"USD": 1.0},
+            "updated_at": "2026-01-01T00:00:00Z",
+            "sources": {"crypto": "static-fallback", "fiat": "static-fallback"},
+            "symbols": ["USD"],
+        }
+        window._on_market_data(snapshot)
+        assert "Offline" in window.status_dot.text.text()
+
+    def test_on_market_fetch_failed_sets_offline_dot(self, window):
+        window.status_dot.set_state(StatusDot.LIVE)
+        window._on_market_fetch_failed()
+        assert "Offline" in window.status_dot.text.text()
+
+    def test_on_market_fetch_failed_clears_in_progress_flag(self, window):
+        window._refresh_in_progress = True
+        window._on_market_fetch_failed()
+        assert not window._refresh_in_progress
+
+    def test_build_market_info_text_contains_rates(self, window):
+        info = window._build_market_info_text()
+        assert "BTC" in info
+        assert "ETH" in info
+        assert "USD" in info
+
+    def test_build_market_info_text_with_timestamp(self, window):
+        window.last_market_timestamp = "2026-01-01T00:00:00Z"
+        info = window._build_market_info_text()
+        assert "2026-01-01T00:00:00Z" in info
+

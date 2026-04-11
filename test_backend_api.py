@@ -248,3 +248,163 @@ def test_api_convert_rejects_invalid_payload():
         assert response.status == 400
         assert "error" in body
         conn.close()
+
+
+# ---------- Additional backend unit tests ----------
+
+
+def test_convert_amounts_with_fee_and_spread():
+    data = convert_amounts(
+        pesos=10000,
+        fee_percent=2,
+        spread_percent=1,
+    )
+    gross = 10000 * COP_TO_USD
+    after_spread = gross * (1 - 0.01)
+    expected_net = after_spread * (1 - 0.02)
+    assert pytest.approx(data["usd"]["pesos"], rel=1e-6) == expected_net
+    assert data["pricing"]["fee_percent"] == 2
+    assert data["pricing"]["spread_percent"] == 1
+    assert data["pricing"]["breakdown"]["pesos"]["gross"] > data["pricing"]["breakdown"]["pesos"]["net"]
+
+
+def test_convert_amounts_fee_above_100_raises():
+    with pytest.raises(ValueError, match="fee_percent deve ser menor que 100"):
+        convert_amounts(pesos=1000, fee_percent=100)
+
+
+def test_convert_amounts_spread_above_100_raises():
+    with pytest.raises(ValueError, match="spread_percent deve ser menor que 100"):
+        convert_amounts(pesos=1000, spread_percent=101)
+
+
+def test_convert_asset_amount_unknown_from_symbol_raises():
+    rates = {"USD": 1.0, "BRL": 0.2}
+    with pytest.raises(ValueError, match="não suportado"):
+        convert_asset_amount(amount=100, from_symbol="XYZ", to_symbol="USD", rates_to_usd=rates)
+
+
+def test_convert_asset_amount_unknown_to_symbol_raises():
+    rates = {"USD": 1.0, "BRL": 0.2}
+    with pytest.raises(ValueError, match="não suportado"):
+        convert_asset_amount(amount=100, from_symbol="BRL", to_symbol="XYZ", rates_to_usd=rates)
+
+
+def test_convert_asset_amount_same_symbol():
+    rates = {"USD": 1.0, "BRL": 0.2}
+    quote = convert_asset_amount(amount=500, from_symbol="BRL", to_symbol="BRL", rates_to_usd=rates)
+    assert pytest.approx(quote["result"]["gross"]) == 500.0
+    assert quote["from_symbol"] == "BRL"
+    assert quote["to_symbol"] == "BRL"
+
+
+def test_get_rates_returns_reverse_rates():
+    rates = get_rates(allow_network=False)
+    assert "USD_TO_COP" in rates
+    assert "USD_TO_PEN" in rates
+    assert "USD_TO_BRL" in rates
+    assert rates["USD_TO_COP"] > 1
+    assert rates["USD_TO_PEN"] > 1
+    assert rates["USD_TO_BRL"] > 1
+
+
+def test_get_rates_contains_rates_to_usd_map():
+    rates = get_rates(allow_network=False)
+    assert "RATES_TO_USD" in rates
+    assert isinstance(rates["RATES_TO_USD"], dict)
+    assert "BTC" in rates["RATES_TO_USD"]
+    assert "USD" in rates["RATES_TO_USD"]
+
+
+# ---------- Additional API route tests ----------
+
+
+def test_api_get_unknown_route_returns_404():
+    with APIServer() as srv:
+        conn = HTTPConnection(srv.host, srv.port, timeout=5)
+        conn.request("GET", "/nonexistent")
+        response = conn.getresponse()
+        body = json.loads(response.read().decode("utf-8"))
+        assert response.status == 404
+        assert "error" in body
+        conn.close()
+
+
+def test_api_post_to_unknown_route_returns_404():
+    with APIServer() as srv:
+        conn = HTTPConnection(srv.host, srv.port, timeout=5)
+        conn.request(
+            "POST",
+            "/unknown",
+            body=json.dumps({}),
+            headers={"Content-Type": "application/json", "Content-Length": "2"},
+        )
+        response = conn.getresponse()
+        body = json.loads(response.read().decode("utf-8"))
+        assert response.status == 404
+        assert "error" in body
+        conn.close()
+
+
+def test_api_post_no_content_length_returns_400():
+    with APIServer() as srv:
+        conn = HTTPConnection(srv.host, srv.port, timeout=5)
+        # Send raw request without Content-Length
+        conn.putrequest("POST", "/convert")
+        conn.putheader("Content-Type", "application/json")
+        conn.endheaders()
+        response = conn.getresponse()
+        body = json.loads(response.read().decode("utf-8"))
+        assert response.status == 400
+        assert "error" in body
+        conn.close()
+
+
+def test_api_post_non_dict_body_returns_400():
+    payload = json.dumps([1, 2, 3])
+    with APIServer() as srv:
+        conn = HTTPConnection(srv.host, srv.port, timeout=5)
+        conn.request(
+            "POST",
+            "/convert",
+            body=payload,
+            headers={"Content-Type": "application/json"},
+        )
+        response = conn.getresponse()
+        body = json.loads(response.read().decode("utf-8"))
+        assert response.status == 400
+        assert "error" in body
+        conn.close()
+
+
+def test_api_convert_endpoint_all_currencies():
+    payload = {"pesos": 10000, "soles": 100, "reais": 50, "btc": 0.01, "eth": 0.5}
+    with APIServer() as srv:
+        conn = HTTPConnection(srv.host, srv.port, timeout=5)
+        conn.request(
+            "POST",
+            "/convert",
+            body=json.dumps(payload),
+            headers={"Content-Type": "application/json"},
+        )
+        response = conn.getresponse()
+        body = json.loads(response.read().decode("utf-8"))
+        assert response.status == 200
+        assert body["inputs"]["pesos"] == 10000
+        assert body["inputs"]["soles"] == 100
+        assert body["inputs"]["reais"] == 50
+        assert body["inputs"]["btc"] == 0.01
+        assert body["inputs"]["eth"] == 0.5
+        assert body["total"] > 0
+        conn.close()
+
+
+def test_api_quote_unsupported_from_symbol_returns_400():
+    with APIServer() as srv:
+        conn = HTTPConnection(srv.host, srv.port, timeout=5)
+        conn.request("GET", "/quote?from=FAKECOIN&to=USD&amount=100")
+        response = conn.getresponse()
+        body = json.loads(response.read().decode("utf-8"))
+        assert response.status == 400
+        assert "error" in body
+        conn.close()
