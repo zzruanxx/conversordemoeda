@@ -19,12 +19,26 @@ DEFAULT_RATES_TO_USD: Dict[str, float] = {
     "EUR": 1.08,
     "COP": 0.00024,
     "PEN": 0.27,
+    "GBP": 1.27,
+    "JPY": 0.0066,
+    "CHF": 1.10,
+    "CAD": 0.73,
+    "AUD": 0.64,
     "BTC": 60000.0,
     "ETH": 3000.0,
+    "BNB": 600.0,
+    "SOL": 150.0,
+    "XRP": 0.50,
+    "ADA": 0.40,
+    "DOGE": 0.12,
 }
 
 # Canonical symbols expected by the application.
-STANDARD_SYMBOLS = ("BTC", "ETH", "USDT", "BRL", "USD", "EUR")
+STANDARD_SYMBOLS = (
+    "BTC", "ETH", "BNB", "SOL", "XRP", "ADA", "DOGE", "USDT",
+    "USD", "EUR", "BRL", "GBP", "JPY", "CHF", "CAD", "AUD",
+    "COP", "PEN",
+)
 
 SYMBOL_ALIASES = {
     "XBT": "BTC",
@@ -76,6 +90,11 @@ class CoinGeckoCryptoProvider(CryptoProvider):
             "BTC": "bitcoin",
             "ETH": "ethereum",
             "USDT": "tether",
+            "BNB": "binancecoin",
+            "SOL": "solana",
+            "XRP": "ripple",
+            "ADA": "cardano",
+            "DOGE": "dogecoin",
         }
         request_ids = [ids[sym] for sym in ids if sym in needed]
         if not request_ids:
@@ -106,6 +125,11 @@ class BinanceCryptoProvider(CryptoProvider):
         symbol_map = {
             "BTC": "BTCUSDT",
             "ETH": "ETHUSDT",
+            "BNB": "BNBUSDT",
+            "SOL": "SOLUSDT",
+            "XRP": "XRPUSDT",
+            "ADA": "ADAUSDT",
+            "DOGE": "DOGEUSDT",
         }
         out: Dict[str, float] = {}
 
@@ -239,8 +263,8 @@ class MarketDataService:
             return dict(snapshot)
 
     def _build_live_snapshot(self) -> Dict[str, object]:
-        crypto_symbols = ["BTC", "ETH", "USDT"]
-        fiat_symbols = ["USD", "BRL", "EUR", "COP", "PEN"]
+        crypto_symbols = ["BTC", "ETH", "USDT", "BNB", "SOL", "XRP", "ADA", "DOGE"]
+        fiat_symbols = ["USD", "BRL", "EUR", "COP", "PEN", "GBP", "JPY", "CHF", "CAD", "AUD"]
 
         crypto_result = self._fetch_with_fallback(self.crypto_providers, crypto_symbols)
         fiat_result = self._fetch_with_fallback(self.fiat_providers, fiat_symbols)

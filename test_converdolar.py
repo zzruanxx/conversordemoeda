@@ -6,7 +6,7 @@ from PyQt5.QtWidgets import QApplication
 
 from converdolar import (
     MainWindow, AnimatedInput, AnimatedButton, ResultLabel, convert_amounts,
-    UniversalConverterPanel, StatusDot,
+    UniversalConverterPanel, StatusDot, CryptoPricesPanel,
     COP_TO_USD, PEN_TO_USD, BRL_TO_USD, BTC_TO_USD, ETH_TO_USD,
     GRADIENT_GREEN, GRADIENT_GREEN_HOVER,
 )
@@ -544,3 +544,91 @@ class TestMainWindowMarketData:
         info = window._build_market_info_text()
         assert "2026-01-01T00:00:00Z" in info
 
+
+# ---------- CryptoPricesPanel tests ----------
+
+_CRYPTO_RATES = {
+    "USD": 1.0,
+    "EUR": 1.08,
+    "BRL": 0.18,
+    "GBP": 1.27,
+    "JPY": 0.0066,
+    "BTC": 60000.0,
+    "ETH": 3000.0,
+    "BNB": 600.0,
+    "SOL": 150.0,
+    "XRP": 0.50,
+    "ADA": 0.40,
+    "DOGE": 0.12,
+}
+
+
+@pytest.fixture
+def crypto_panel():
+    return CryptoPricesPanel(dict(_CRYPTO_RATES))
+
+
+class TestCryptoPricesPanel:
+    def test_panel_created(self, crypto_panel):
+        assert crypto_panel is not None
+
+    def test_panel_has_price_labels(self, crypto_panel):
+        assert len(crypto_panel._price_labels) > 0
+
+    def test_panel_has_btc_usd_label(self, crypto_panel):
+        assert ("BTC", "USD") in crypto_panel._price_labels
+
+    def test_panel_has_eth_eur_label(self, crypto_panel):
+        assert ("ETH", "EUR") in crypto_panel._price_labels
+
+    def test_panel_btc_usd_price_displayed(self, crypto_panel):
+        lbl = crypto_panel._price_labels[("BTC", "USD")]
+        assert lbl.text() != "—"
+        assert "60" in lbl.text()
+
+    def test_panel_eth_brl_price_displayed(self, crypto_panel):
+        lbl = crypto_panel._price_labels[("ETH", "BRL")]
+        # 3000 / 0.18 ≈ 16666.67
+        assert lbl.text() != "—"
+
+    def test_panel_update_rates_refreshes_prices(self, crypto_panel):
+        new_rates = dict(_CRYPTO_RATES)
+        new_rates["BTC"] = 99000.0
+        crypto_panel.update_rates(new_rates)
+        lbl = crypto_panel._price_labels[("BTC", "USD")]
+        assert "99" in lbl.text()
+
+    def test_panel_shows_dash_for_missing_crypto(self, crypto_panel):
+        crypto_panel.update_rates({"USD": 1.0, "EUR": 1.08})
+        lbl = crypto_panel._price_labels[("BTC", "USD")]
+        assert lbl.text() == "—"
+
+    def test_panel_fmt_price_jpy(self, crypto_panel):
+        result = CryptoPricesPanel._fmt_price(60000.0, "JPY")
+        assert "¥" in result
+        assert "." not in result  # JPY should be integer
+
+    def test_panel_fmt_price_usd_large(self, crypto_panel):
+        result = CryptoPricesPanel._fmt_price(60000.0, "USD")
+        assert "$" in result
+
+    def test_panel_fmt_price_small_value(self, crypto_panel):
+        result = CryptoPricesPanel._fmt_price(0.0001, "USD")
+        assert "$" in result
+        assert "0.000100" in result
+
+    def test_window_has_crypto_prices_panel(self, window):
+        assert hasattr(window, "crypto_prices_panel")
+        assert isinstance(window.crypto_prices_panel, CryptoPricesPanel)
+
+    def test_on_market_data_updates_crypto_panel(self, window):
+        snapshot = {
+            "rates_to_usd": dict(_CRYPTO_RATES),
+            "updated_at": "2026-04-27T00:00:00Z",
+            "sources": {"crypto": "test", "fiat": "test"},
+            "symbols": list(_CRYPTO_RATES.keys()),
+        }
+        snapshot["rates_to_usd"]["BTC"] = 80000.0
+        window._on_market_data(snapshot)
+        lbl = window.crypto_prices_panel._price_labels[("BTC", "USD")]
+        assert "80" in lbl.text()

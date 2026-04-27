@@ -29,7 +29,11 @@ _MARKET_DATA = MarketDataService(ttl_seconds=20)
 DECIMAL_ZERO = Decimal("0")
 DECIMAL_ONE = Decimal("1")
 DECIMAL_HUNDRED = Decimal("100")
-CRYPTO_SYMBOLS = {"BTC", "ETH", "USDT"}
+CRYPTO_SYMBOLS = {"BTC", "ETH", "USDT", "BNB", "SOL", "XRP", "ADA", "DOGE"}
+
+# Ordered lists used for the crypto monitoring feature
+MONITOR_CRYPTOS = ["BTC", "ETH", "BNB", "SOL", "XRP", "ADA", "DOGE"]
+MONITOR_FIATS = ["USD", "EUR", "BRL", "GBP", "JPY"]
 
 
 def _to_decimal(raw: Any) -> Decimal:
@@ -326,4 +330,51 @@ def convert_amounts(
             "spread_percent": _decimal_to_float(spread_dec),
             "breakdown": pricing_breakdown,
         },
+    }
+
+
+def get_crypto_prices_in_currencies(
+    allow_network: bool = True,
+    rates_to_usd: Mapping[str, Any] | None = None,
+) -> Dict[str, Any]:
+    """Return the price of each major cryptocurrency expressed in major fiat currencies.
+
+    The result contains a ``prices`` mapping of the form
+    ``{crypto_symbol: {fiat_symbol: price_as_float}}``, plus metadata about
+    which cryptos and currencies are available and when the data was last
+    fetched.
+    """
+    snapshot_meta: Dict[str, object] | None = None
+    source_rates = rates_to_usd
+
+    if source_rates is None:
+        snapshot_meta = get_market_snapshot(allow_network=allow_network)
+        source_rates = snapshot_meta.get("rates_to_usd", {})
+
+    rates_decimals = _resolve_rates_to_usd_decimals(source_rates)
+
+    prices: Dict[str, Dict[str, float]] = {}
+    for crypto in MONITOR_CRYPTOS:
+        if crypto not in rates_decimals:
+            continue
+        crypto_rate_usd = rates_decimals[crypto]
+        prices[crypto] = {}
+        for fiat in MONITOR_FIATS:
+            if fiat not in rates_decimals:
+                continue
+            fiat_rate_usd = rates_decimals[fiat]
+            price = crypto_rate_usd / fiat_rate_usd
+            prices[crypto][fiat] = _decimal_to_float(price)
+
+    available_cryptos = [c for c in MONITOR_CRYPTOS if c in prices]
+    available_fiats = [
+        f for f in MONITOR_FIATS if any(f in p for p in prices.values())
+    ]
+
+    return {
+        "cryptos": available_cryptos,
+        "currencies": available_fiats,
+        "prices": prices,
+        "updated_at": snapshot_meta.get("updated_at") if snapshot_meta else None,
+        "sources": snapshot_meta.get("sources", {}) if snapshot_meta else {},
     }

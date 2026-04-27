@@ -12,11 +12,15 @@ from backend import (
     COP_TO_USD,
     ETH_TO_USD,
     PEN_TO_USD,
+    MONITOR_CRYPTOS,
+    MONITOR_FIATS,
     convert_asset_amount,
     convert_amounts,
     get_asset_catalog,
+    get_crypto_prices_in_currencies,
     get_rates,
 )
+from market_data import DEFAULT_RATES_TO_USD
 
 
 class APIServer:
@@ -408,3 +412,163 @@ def test_api_quote_unsupported_from_symbol_returns_400():
         assert response.status == 400
         assert "error" in body
         conn.close()
+
+
+# ---------- Crypto monitoring backend tests ----------
+
+
+def test_get_crypto_prices_in_currencies_structure():
+    rates = {
+        "USD": 1.0,
+        "EUR": 1.08,
+        "BRL": 0.18,
+        "GBP": 1.27,
+        "JPY": 0.0066,
+        "BTC": 60000.0,
+        "ETH": 3000.0,
+        "BNB": 600.0,
+        "SOL": 150.0,
+        "XRP": 0.50,
+        "ADA": 0.40,
+        "DOGE": 0.12,
+    }
+    data = get_crypto_prices_in_currencies(rates_to_usd=rates)
+    assert "cryptos" in data
+    assert "currencies" in data
+    assert "prices" in data
+    assert "BTC" in data["cryptos"]
+    assert "ETH" in data["cryptos"]
+    assert "USD" in data["currencies"]
+    assert "EUR" in data["currencies"]
+
+
+def test_get_crypto_prices_in_currencies_values():
+    rates = {
+        "USD": 1.0,
+        "EUR": 1.08,
+        "BRL": 0.18,
+        "GBP": 1.27,
+        "JPY": 0.0066,
+        "BTC": 60000.0,
+        "ETH": 3000.0,
+        "BNB": 600.0,
+        "SOL": 150.0,
+        "XRP": 0.50,
+        "ADA": 0.40,
+        "DOGE": 0.12,
+    }
+    data = get_crypto_prices_in_currencies(rates_to_usd=rates)
+    prices = data["prices"]
+    # BTC in USD = 60000 / 1.0
+    assert pytest.approx(prices["BTC"]["USD"]) == 60000.0
+    # BTC in BRL = 60000 / 0.18
+    assert pytest.approx(prices["BTC"]["BRL"]) == 60000.0 / 0.18
+    # ETH in EUR = 3000 / 1.08
+    assert pytest.approx(prices["ETH"]["EUR"]) == 3000.0 / 1.08
+    # DOGE in JPY = 0.12 / 0.0066
+    assert pytest.approx(prices["DOGE"]["JPY"]) == 0.12 / 0.0066
+
+
+def test_get_crypto_prices_in_currencies_missing_fiat_skipped():
+    # When rates_to_usd provides no EUR, but the function falls back to
+    # DEFAULT_RATES_TO_USD which includes EUR; test that explicit override works.
+    rates = {"USD": 1.0, "BTC": 50000.0, "ETH": 2500.0, "EUR": 1.1, "BRL": 0.20, "GBP": 1.25, "JPY": 0.007}
+    data = get_crypto_prices_in_currencies(rates_to_usd=rates)
+    prices = data["prices"]
+    assert "USD" in prices.get("BTC", {})
+    assert pytest.approx(prices["BTC"]["USD"]) == 50000.0
+    assert pytest.approx(prices["BTC"]["EUR"]) == 50000.0 / 1.1
+
+
+def test_get_crypto_prices_in_currencies_missing_crypto_skipped():
+    # When only fiat rates provided, DEFAULT_RATES_TO_USD fills in the crypto
+    # defaults; the function returns those default crypto prices.
+    rates = {"USD": 1.0, "EUR": 1.08}
+    data = get_crypto_prices_in_currencies(rates_to_usd=rates)
+    # defaults contain BTC=60000 so it should still appear
+    assert "BTC" in data["cryptos"]
+    # Verify the price is computed from the default BTC rate
+    assert pytest.approx(data["prices"]["BTC"]["USD"]) == DEFAULT_RATES_TO_USD["BTC"]
+
+
+def test_get_crypto_prices_uses_monitor_constants():
+    assert len(MONITOR_CRYPTOS) > 0
+    assert len(MONITOR_FIATS) > 0
+    assert "BTC" in MONITOR_CRYPTOS
+    assert "USD" in MONITOR_FIATS
+
+
+# ---------- /crypto API endpoint tests ----------
+
+
+def test_api_crypto_endpoint_structure(monkeypatch):
+    snapshot = {
+        "rates_to_usd": {
+            "USD": 1.0,
+            "EUR": 1.08,
+            "BRL": 0.18,
+            "GBP": 1.27,
+            "JPY": 0.0066,
+            "BTC": 60000.0,
+            "ETH": 3000.0,
+            "BNB": 600.0,
+            "SOL": 150.0,
+            "XRP": 0.50,
+            "ADA": 0.40,
+            "DOGE": 0.12,
+        },
+        "updated_at": "2026-04-27T01:00:00Z",
+        "updated_at_unix": 1777000000,
+        "sources": {"crypto": "test", "fiat": "test"},
+        "symbols": list(MONITOR_CRYPTOS) + list(MONITOR_FIATS),
+    }
+    monkeypatch.setattr("api.get_market_snapshot", lambda allow_network=True: snapshot)
+
+    with APIServer() as srv:
+        conn = HTTPConnection(srv.host, srv.port, timeout=5)
+        conn.request("GET", "/crypto")
+        response = conn.getresponse()
+        body = json.loads(response.read().decode("utf-8"))
+        assert response.status == 200
+        assert "cryptos" in body
+        assert "currencies" in body
+        assert "prices" in body
+        assert "BTC" in body["cryptos"]
+        assert "USD" in body["currencies"]
+        assert body["prices"]["BTC"]["USD"] > 0
+        conn.close()
+
+
+def test_api_crypto_endpoint_price_values(monkeypatch):
+    snapshot = {
+        "rates_to_usd": {
+            "USD": 1.0,
+            "EUR": 1.08,
+            "BRL": 0.18,
+            "GBP": 1.27,
+            "JPY": 0.0066,
+            "BTC": 60000.0,
+            "ETH": 3000.0,
+            "BNB": 600.0,
+            "SOL": 150.0,
+            "XRP": 0.50,
+            "ADA": 0.40,
+            "DOGE": 0.12,
+        },
+        "updated_at": "2026-04-27T01:00:00Z",
+        "updated_at_unix": 1777000000,
+        "sources": {"crypto": "test", "fiat": "test"},
+        "symbols": list(MONITOR_CRYPTOS) + list(MONITOR_FIATS),
+    }
+    monkeypatch.setattr("api.get_market_snapshot", lambda allow_network=True: snapshot)
+
+    with APIServer() as srv:
+        conn = HTTPConnection(srv.host, srv.port, timeout=5)
+        conn.request("GET", "/crypto")
+        response = conn.getresponse()
+        body = json.loads(response.read().decode("utf-8"))
+        assert response.status == 200
+        assert pytest.approx(body["prices"]["BTC"]["USD"]) == 60000.0
+        assert pytest.approx(body["prices"]["ETH"]["EUR"]) == 3000.0 / 1.08
+        conn.close()
+

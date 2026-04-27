@@ -15,8 +15,11 @@ from backend import (
     USD_TO_COP,
     USD_TO_PEN,
     USD_TO_BRL,
+    MONITOR_CRYPTOS,
+    MONITOR_FIATS,
     convert_amounts,
     convert_asset_amount,
+    get_crypto_prices_in_currencies,
     get_market_snapshot,
 )
 
@@ -38,11 +41,24 @@ _CURRENCY_DISPLAY = {
     "PEN": "🇵🇪 PEN",
     "USD": "🇺🇸 USD",
     "EUR": "🇪🇺 EUR",
+    "GBP": "🇬🇧 GBP",
+    "JPY": "🇯🇵 JPY",
+    "CHF": "🇨🇭 CHF",
+    "CAD": "🇨🇦 CAD",
+    "AUD": "🇦🇺 AUD",
     "BTC": "₿  BTC",
     "ETH": "⟠  ETH",
+    "BNB": "🟡 BNB",
+    "SOL": "◎  SOL",
+    "XRP": "✕  XRP",
+    "ADA": "₳  ADA",
+    "DOGE": "🐕 DOGE",
     "USDT": "🪙 USDT",
 }
-_DEFAULT_SYMBOLS = ["BRL", "COP", "PEN", "USD", "EUR", "BTC", "ETH", "USDT"]
+_DEFAULT_SYMBOLS = [
+    "BRL", "COP", "PEN", "USD", "EUR", "GBP", "JPY", "CHF", "CAD", "AUD",
+    "BTC", "ETH", "BNB", "SOL", "XRP", "ADA", "DOGE", "USDT",
+]
 
 
 def _fade_in(widget, duration: int = 400) -> None:
@@ -479,7 +495,144 @@ class UniversalConverterPanel(QFrame):
             QTimer.singleShot(2000, lambda: self.copy_btn.setText("📋 Copiar"))
 
 
-class AnimatedInput(QFrame):
+# ─── Crypto price monitoring panel ───────────────────────────────────────────
+class CryptoPricesPanel(QFrame):
+    """Shows a live price comparison grid: major cryptos × major fiat currencies."""
+
+    _FIAT_SYMBOLS = MONITOR_FIATS          # ["USD", "EUR", "BRL", "GBP", "JPY"]
+    _CRYPTO_SYMBOLS = MONITOR_CRYPTOS      # ["BTC", "ETH", "BNB", "SOL", "XRP", "ADA", "DOGE"]
+
+    _FIAT_HEADERS = {
+        "USD": "🇺🇸 USD",
+        "EUR": "🇪🇺 EUR",
+        "BRL": "🇧🇷 BRL",
+        "GBP": "🇬🇧 GBP",
+        "JPY": "🇯🇵 JPY",
+    }
+    _CRYPTO_LABELS = {
+        "BTC":  "₿ BTC",
+        "ETH":  "⟠ ETH",
+        "BNB":  "🟡 BNB",
+        "SOL":  "◎ SOL",
+        "XRP":  "✕ XRP",
+        "ADA":  "₳ ADA",
+        "DOGE": "🐕 DOGE",
+    }
+
+    _HEADER_STYLE = (
+        "color: #8b92a8; font-size: 10px; font-weight: bold;"
+        " background: transparent; border: none;"
+    )
+    _CRYPTO_LABEL_STYLE = (
+        "color: #ffffff; font-size: 11px; font-weight: bold;"
+        " background: transparent; border: none;"
+    )
+    _PRICE_STYLE = (
+        "color: #38ef7d; font-size: 11px;"
+        " background: transparent; border: none;"
+    )
+
+    def __init__(self, rates_to_usd: dict, parent=None):
+        super().__init__(parent)
+        self._rates = rates_to_usd
+        self._price_labels: dict[tuple[str, str], QLabel] = {}
+        self._setup_ui()
+        self._refresh_grid()
+
+    def _setup_ui(self) -> None:
+        self.setObjectName("cryptoPricesPanel")
+        self.setStyleSheet(
+            "QFrame#cryptoPricesPanel {"
+            "  background: #161d2e; border-radius: 20px; border: 1px solid #2a3550;"
+            "}"
+        )
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(18, 16, 18, 18)
+        outer.setSpacing(10)
+
+        # Header row
+        hdr = QLabel("📈 Monitor de Criptomoedas")
+        hdr.setFont(QFont("Segoe UI", 14, QFont.Bold))
+        hdr.setStyleSheet("color: #ffffff; background: transparent; border: none;")
+        outer.addWidget(hdr)
+
+        sub = QLabel("Preços em tempo real nas principais moedas mundiais")
+        sub.setFont(QFont("Segoe UI", 10))
+        sub.setStyleSheet("color: #8b92a8; background: transparent; border: none;")
+        outer.addWidget(sub)
+
+        # Grid container
+        grid_frame = QFrame()
+        grid_frame.setStyleSheet(
+            "QFrame { background: #1e2940; border-radius: 12px; border: 1px solid #2a3550; }"
+        )
+        from PyQt5.QtWidgets import QGridLayout
+        grid = QGridLayout(grid_frame)
+        grid.setContentsMargins(12, 10, 12, 10)
+        grid.setSpacing(4)
+
+        # Column headers (row 0)
+        corner = QLabel("")
+        corner.setStyleSheet("background: transparent; border: none;")
+        grid.addWidget(corner, 0, 0)
+        for col_idx, fiat in enumerate(self._FIAT_SYMBOLS, start=1):
+            lbl = QLabel(self._FIAT_HEADERS.get(fiat, fiat))
+            lbl.setFont(QFont("Segoe UI", 9, QFont.Bold))
+            lbl.setStyleSheet(self._HEADER_STYLE)
+            lbl.setAlignment(Qt.AlignCenter)
+            grid.addWidget(lbl, 0, col_idx)
+
+        # Crypto rows
+        for row_idx, crypto in enumerate(self._CRYPTO_SYMBOLS, start=1):
+            name_lbl = QLabel(self._CRYPTO_LABELS.get(crypto, crypto))
+            name_lbl.setFont(QFont("Segoe UI", 11, QFont.Bold))
+            name_lbl.setStyleSheet(self._CRYPTO_LABEL_STYLE)
+            grid.addWidget(name_lbl, row_idx, 0)
+
+            for col_idx, fiat in enumerate(self._FIAT_SYMBOLS, start=1):
+                price_lbl = QLabel("—")
+                price_lbl.setFont(QFont("Segoe UI", 10))
+                price_lbl.setStyleSheet(self._PRICE_STYLE)
+                price_lbl.setAlignment(Qt.AlignCenter)
+                grid.addWidget(price_lbl, row_idx, col_idx)
+                self._price_labels[(crypto, fiat)] = price_lbl
+
+        outer.addWidget(grid_frame)
+
+    @staticmethod
+    def _fmt_price(value: float, fiat: str) -> str:
+        """Format a crypto price in the given fiat currency."""
+        if fiat == "JPY":
+            return f"¥{value:,.0f}"
+        prefix = {"USD": "$", "EUR": "€", "BRL": "R$", "GBP": "£"}.get(fiat, "")
+        if value >= 1000:
+            return f"{prefix}{value:,.2f}"
+        if value >= 1:
+            return f"{prefix}{value:,.4f}"
+        return f"{prefix}{value:,.6f}"
+
+    def _refresh_grid(self) -> None:
+        """Recompute and update all price labels from current rates."""
+        data = get_crypto_prices_in_currencies(allow_network=False, rates_to_usd=self._rates)
+        prices = data.get("prices", {})
+        for crypto in self._CRYPTO_SYMBOLS:
+            for fiat in self._FIAT_SYMBOLS:
+                lbl = self._price_labels.get((crypto, fiat))
+                if lbl is None:
+                    continue
+                price = prices.get(crypto, {}).get(fiat)
+                if price is not None:
+                    lbl.setText(self._fmt_price(price, fiat))
+                else:
+                    lbl.setText("—")
+
+    def update_rates(self, rates_to_usd: dict) -> None:
+        """Called when fresh market data arrives; refreshes the displayed prices."""
+        self._rates = rates_to_usd
+        self._refresh_grid()
+
+
+
     def __init__(self, label_text, color, placeholder, parent=None):
         super().__init__(parent)
         self.color = color
@@ -611,6 +764,16 @@ class MainWindow(QWidget):
             "USD": 1.0,
             "USDT": 1.0,
             "EUR": 1.08,
+            "GBP": 1.27,
+            "JPY": 0.0066,
+            "CHF": 1.10,
+            "CAD": 0.73,
+            "AUD": 0.64,
+            "BNB": 600.0,
+            "SOL": 150.0,
+            "XRP": 0.50,
+            "ADA": 0.40,
+            "DOGE": 0.12,
         }
         self.last_market_timestamp = None
 
@@ -664,6 +827,10 @@ class MainWindow(QWidget):
         # ── Universal converter ───────────────────────────────────────────────
         self.universal_panel = UniversalConverterPanel(dict(self.current_rates_to_usd))
         layout.addWidget(self.universal_panel)
+
+        # ── Crypto prices monitor ─────────────────────────────────────────────
+        self.crypto_prices_panel = CryptoPricesPanel(dict(self.current_rates_to_usd))
+        layout.addWidget(self.crypto_prices_panel)
 
         # ── Section divider ───────────────────────────────────────────────────
         div = QFrame()
@@ -762,10 +929,14 @@ class MainWindow(QWidget):
 
     def refresh_market_info(self, allow_network: bool = True) -> None:
         """Synchronous refresh — use only with allow_network=False on startup."""
+        _all_syms = (
+            "COP", "PEN", "BRL", "BTC", "ETH", "USD", "USDT", "EUR",
+            "GBP", "JPY", "CHF", "CAD", "AUD", "BNB", "SOL", "XRP", "ADA", "DOGE",
+        )
         try:
             snapshot = get_market_snapshot(allow_network=allow_network)
             rates = snapshot.get("rates_to_usd", {})
-            for sym in ("COP", "PEN", "BRL", "BTC", "ETH", "USD", "USDT", "EUR"):
+            for sym in _all_syms:
                 raw = rates.get(sym)
                 if isinstance(raw, (int, float)) and raw > 0:
                     self.current_rates_to_usd[sym] = float(raw)
@@ -796,9 +967,13 @@ class MainWindow(QWidget):
 
     def _on_market_data(self, snapshot: dict) -> None:
         """Handle fresh market data received from the background thread."""
+        _all_syms = (
+            "COP", "PEN", "BRL", "BTC", "ETH", "USD", "USDT", "EUR",
+            "GBP", "JPY", "CHF", "CAD", "AUD", "BNB", "SOL", "XRP", "ADA", "DOGE",
+        )
         self._refresh_in_progress = False
         rates = snapshot.get("rates_to_usd", {})
-        for sym in ("COP", "PEN", "BRL", "BTC", "ETH", "USD", "USDT", "EUR"):
+        for sym in _all_syms:
             raw = rates.get(sym)
             if isinstance(raw, (int, float)) and raw > 0:
                 self.current_rates_to_usd[sym] = float(raw)
@@ -815,6 +990,7 @@ class MainWindow(QWidget):
         symbols = list(snapshot.get("symbols", []))
         if symbols:
             self.universal_panel.update_symbols(symbols)
+        self.crypto_prices_panel.update_rates(dict(self.current_rates_to_usd))
 
     def _on_market_fetch_failed(self) -> None:
         """Called when the background refresh thread could not reach any provider."""
