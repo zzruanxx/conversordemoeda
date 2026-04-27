@@ -60,6 +60,12 @@ _DEFAULT_SYMBOLS = [
     "BTC", "ETH", "BNB", "SOL", "XRP", "ADA", "DOGE", "USDT",
 ]
 
+# All symbols whose rates are tracked in MainWindow.current_rates_to_usd
+_ALL_RATE_SYMBOLS = (
+    "COP", "PEN", "BRL", "BTC", "ETH", "USD", "USDT", "EUR",
+    "GBP", "JPY", "CHF", "CAD", "AUD", "BNB", "SOL", "XRP", "ADA", "DOGE",
+)
+
 
 def _fade_in(widget, duration: int = 400) -> None:
     """Fade a widget in using QGraphicsOpacityEffect (works for any child widget).
@@ -632,7 +638,7 @@ class CryptoPricesPanel(QFrame):
         self._refresh_grid()
 
 
-
+class AnimatedInput(QFrame):
     def __init__(self, label_text, color, placeholder, parent=None):
         super().__init__(parent)
         self.color = color
@@ -929,14 +935,10 @@ class MainWindow(QWidget):
 
     def refresh_market_info(self, allow_network: bool = True) -> None:
         """Synchronous refresh — use only with allow_network=False on startup."""
-        _all_syms = (
-            "COP", "PEN", "BRL", "BTC", "ETH", "USD", "USDT", "EUR",
-            "GBP", "JPY", "CHF", "CAD", "AUD", "BNB", "SOL", "XRP", "ADA", "DOGE",
-        )
         try:
             snapshot = get_market_snapshot(allow_network=allow_network)
             rates = snapshot.get("rates_to_usd", {})
-            for sym in _all_syms:
+            for sym in _ALL_RATE_SYMBOLS:
                 raw = rates.get(sym)
                 if isinstance(raw, (int, float)) and raw > 0:
                     self.current_rates_to_usd[sym] = float(raw)
@@ -967,13 +969,9 @@ class MainWindow(QWidget):
 
     def _on_market_data(self, snapshot: dict) -> None:
         """Handle fresh market data received from the background thread."""
-        _all_syms = (
-            "COP", "PEN", "BRL", "BTC", "ETH", "USD", "USDT", "EUR",
-            "GBP", "JPY", "CHF", "CAD", "AUD", "BNB", "SOL", "XRP", "ADA", "DOGE",
-        )
         self._refresh_in_progress = False
         rates = snapshot.get("rates_to_usd", {})
-        for sym in _all_syms:
+        for sym in _ALL_RATE_SYMBOLS:
             raw = rates.get(sym)
             if isinstance(raw, (int, float)) and raw > 0:
                 self.current_rates_to_usd[sym] = float(raw)
