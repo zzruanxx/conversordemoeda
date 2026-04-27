@@ -10,6 +10,7 @@ from backend import (
     convert_amounts,
     convert_asset_amount,
     get_asset_catalog,
+    get_crypto_prices_in_currencies,
     get_market_snapshot,
     get_rates,
 )
@@ -45,6 +46,10 @@ class ConversionAPIHandler(BaseHTTPRequestHandler):
         if route == "/assets":
             catalog = get_asset_catalog(allow_network=True)
             self._send_json(catalog)
+            return
+        if route == "/crypto":
+            data = get_crypto_prices_in_currencies(allow_network=True)
+            self._send_json(data)
             return
         if route == "/quote":
             params = parse_qs(parsed.query)
