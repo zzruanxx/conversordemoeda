@@ -7,6 +7,8 @@ from market_data import (
     normalize_symbol,
 )
 
+REQUIRED_SNAPSHOT_KEYS = ("rates_to_usd", "updated_at", "updated_at_unix", "sources", "symbols")
+
 
 class FailingCryptoProvider(CryptoProvider):
     name = "crypto-primary-fail"
@@ -151,6 +153,8 @@ def test_market_service_all_providers_fail_returns_static_fallback():
     assert "updated_at" in snapshot
     assert "sources" in snapshot
     assert "symbols" in snapshot
+    for key in REQUIRED_SNAPSHOT_KEYS:
+        assert key in snapshot, f"Missing key in static-fallback snapshot: {key}"
     assert snapshot["rates_to_usd"]["USD"] == 1.0
     assert snapshot["rates_to_usd"]["BTC"] > 0
 
@@ -164,7 +168,7 @@ def test_market_service_snapshot_has_all_required_keys():
     )
     snapshot = service.get_snapshot(allow_network=True)
 
-    for key in ("rates_to_usd", "updated_at", "updated_at_unix", "sources", "symbols"):
+    for key in REQUIRED_SNAPSHOT_KEYS:
         assert key in snapshot, f"Missing key in snapshot: {key}"
 
 
