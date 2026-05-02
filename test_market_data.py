@@ -7,6 +7,8 @@ from market_data import (
     normalize_symbol,
 )
 
+REQUIRED_SNAPSHOT_KEYS = ("rates_to_usd", "updated_at", "updated_at_unix", "sources", "symbols")
+
 
 class FailingCryptoProvider(CryptoProvider):
     name = "crypto-primary-fail"
@@ -120,3 +122,91 @@ def test_market_service_without_network_returns_static_or_cache():
     assert snapshot["sources"]["fiat"] == "static-fallback"
     assert "updated_at" in snapshot
     assert snapshot["rates_to_usd"]["USD"] == 1.0
+
+
+def test_symbol_normalization_leading_trailing_spaces():
+    assert normalize_symbol("  btc  ") == "BTC"
+    assert normalize_symbol("  USD  ") == "USD"
+
+
+def test_symbol_normalization_already_uppercase():
+    assert normalize_symbol("BTC") == "BTC"
+    assert normalize_symbol("ETH") == "ETH"
+
+
+def test_symbol_normalization_mixed_case():
+    assert normalize_symbol("Eth") == "ETH"
+    assert normalize_symbol("bRl") == "BRL"
+
+
+def test_market_service_all_providers_fail_returns_static_fallback():
+    """When every provider fails and there is no cache, the service returns
+    static-fallback data with the expected keys."""
+    service = MarketDataService(
+        crypto_providers=[FailingCryptoProvider()],
+        fiat_providers=[FailingFiatProvider()],
+        ttl_seconds=20,
+    )
+    snapshot = service.get_snapshot(allow_network=False)
+
+    assert "rates_to_usd" in snapshot
+    assert "updated_at" in snapshot
+    assert "sources" in snapshot
+    assert "symbols" in snapshot
+    for key in REQUIRED_SNAPSHOT_KEYS:
+        assert key in snapshot, f"Missing key in static-fallback snapshot: {key}"
+    assert snapshot["rates_to_usd"]["USD"] == 1.0
+    assert snapshot["rates_to_usd"]["BTC"] > 0
+
+
+def test_market_service_snapshot_has_all_required_keys():
+    """A fresh snapshot from a working service must expose all expected keys."""
+    service = MarketDataService(
+        crypto_providers=[FallbackCryptoProvider()],
+        fiat_providers=[FallbackFiatProvider()],
+        ttl_seconds=30,
+    )
+    snapshot = service.get_snapshot(allow_network=True)
+
+    for key in REQUIRED_SNAPSHOT_KEYS:
+        assert key in snapshot, f"Missing key in snapshot: {key}"
+
+
+def test_market_service_rates_to_usd_usd_always_one():
+    """USD must always equal 1.0 in the rates mapping."""
+    service = MarketDataService(
+        crypto_providers=[FallbackCryptoProvider()],
+        fiat_providers=[FallbackFiatProvider()],
+        ttl_seconds=30,
+    )
+    snapshot = service.get_snapshot(allow_network=True)
+    assert snapshot["rates_to_usd"].get("USD") == 1.0
+
+
+def test_market_service_sources_contain_crypto_and_fiat():
+    """The sources dict must always carry 'crypto' and 'fiat' entries."""
+    service = MarketDataService(
+        crypto_providers=[FallbackCryptoProvider()],
+        fiat_providers=[FallbackFiatProvider()],
+        ttl_seconds=30,
+    )
+    snapshot = service.get_snapshot(allow_network=True)
+    assert "crypto" in snapshot["sources"]
+    assert "fiat" in snapshot["sources"]
+
+
+def test_market_service_cache_hit_does_not_re_call_providers():
+    """Two consecutive calls within TTL must invoke each provider exactly once."""
+    crypto = FallbackCryptoProvider()
+    fiat = FallbackFiatProvider()
+    service = MarketDataService(
+        crypto_providers=[crypto],
+        fiat_providers=[fiat],
+        ttl_seconds=60,
+    )
+    service.get_snapshot(allow_network=True)
+    service.get_snapshot(allow_network=True)
+    service.get_snapshot(allow_network=True)
+
+    assert crypto.calls == 1
+    assert fiat.calls == 1

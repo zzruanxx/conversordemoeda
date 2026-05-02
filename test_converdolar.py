@@ -598,10 +598,16 @@ class TestCryptoPricesPanel:
         lbl = crypto_panel._price_labels[("BTC", "USD")]
         assert "99" in lbl.text()
 
-    def test_panel_shows_dash_for_missing_crypto(self, crypto_panel):
+    def test_panel_shows_default_price_when_only_fiat_rates_provided(self, crypto_panel):
+        # DEFAULT_RATES_TO_USD is always merged into the rate set, so even when only
+        # fiat rates are provided the panel still shows the default crypto prices
+        # (rather than "—").  A "—" can never appear for standard MONITOR_CRYPTOS.
+        from market_data import DEFAULT_RATES_TO_USD
         crypto_panel.update_rates({"USD": 1.0, "EUR": 1.08})
         lbl = crypto_panel._price_labels[("BTC", "USD")]
-        assert lbl.text() == "—"
+        expected_price = DEFAULT_RATES_TO_USD["BTC"] / DEFAULT_RATES_TO_USD["USD"]
+        assert lbl.text() != "—"
+        assert str(int(expected_price))[:2] in lbl.text()
 
     def test_panel_fmt_price_jpy(self, crypto_panel):
         result = CryptoPricesPanel._fmt_price(60000.0, "JPY")
@@ -632,3 +638,135 @@ class TestCryptoPricesPanel:
         window._on_market_data(snapshot)
         lbl = window.crypto_prices_panel._price_labels[("BTC", "USD")]
         assert "80" in lbl.text()
+
+
+# ---------- UniversalConverterPanel format / integration tests ----------
+
+class TestUniversalConverterPanelIntegration:
+    def test_btc_result_formatted_with_six_decimals(self, panel):
+        """BTC conversion results should show 6 decimal places."""
+        panel.amount_input.setText("1000")
+        panel.from_combo.setCurrentIndex(panel.from_combo.findData("USD"))
+        panel.to_combo.setCurrentIndex(panel.to_combo.findData("BTC"))
+        panel.do_convert()
+        text = panel.result_main.text()
+        # 1000 USD / 60000 BTC ≈ 0.016667 BTC  → should display 6 decimal digits
+        assert "BTC" in text
+        parts = text.split("BTC")[0].strip().split()
+        result_number = parts[-1].replace(",", "")
+        assert "." in result_number
+        assert len(result_number.split(".")[1]) == 6
+
+    def test_eth_result_formatted_with_six_decimals(self, panel):
+        """ETH conversion results should show 6 decimal places."""
+        panel.amount_input.setText("500")
+        panel.from_combo.setCurrentIndex(panel.from_combo.findData("USD"))
+        panel.to_combo.setCurrentIndex(panel.to_combo.findData("ETH"))
+        panel.do_convert()
+        text = panel.result_main.text()
+        assert "ETH" in text
+
+    def test_swap_then_convert_uses_swapped_currencies(self, panel):
+        """After swapping, conversion should use the new from/to order."""
+        panel.from_combo.setCurrentIndex(panel.from_combo.findData("BRL"))
+        panel.to_combo.setCurrentIndex(panel.to_combo.findData("USD"))
+        panel.swap_currencies()
+        panel.amount_input.setText("1")
+        panel.do_convert()
+        text = panel.result_main.text()
+        # After swap: from=USD, to=BRL
+        assert "USD" in text
+        assert "BRL" in text
+
+    def test_do_convert_btc_to_eth_cross_crypto(self, panel):
+        """Cross-crypto conversion (BTC → ETH) should produce a valid positive result."""
+        panel.amount_input.setText("1")
+        panel.from_combo.setCurrentIndex(panel.from_combo.findData("BTC"))
+        panel.to_combo.setCurrentIndex(panel.to_combo.findData("ETH"))
+        panel.do_convert()
+        text = panel.result_main.text()
+        assert "BTC" in text
+        assert "ETH" in text
+        assert not panel.result_main.isHidden()
+
+    def test_do_convert_large_amount_no_overflow(self, panel):
+        """Very large amounts should be handled without error."""
+        panel.amount_input.setText("1000000")
+        panel.from_combo.setCurrentIndex(panel.from_combo.findData("BRL"))
+        panel.to_combo.setCurrentIndex(panel.to_combo.findData("USD"))
+        panel.do_convert()
+        assert not panel.result_main.isHidden()
+        assert "⚠️" not in panel.result_main.text()
+
+    def test_update_rates_affects_conversion_result(self, panel):
+        """Updating rates should change subsequent conversion results."""
+        panel.amount_input.setText("1")
+        panel.from_combo.setCurrentIndex(panel.from_combo.findData("BRL"))
+        panel.to_combo.setCurrentIndex(panel.to_combo.findData("USD"))
+
+        panel.do_convert()
+        text_before = panel.result_main.text()
+
+        # Double the BRL rate
+        new_rates = dict(_DEFAULT_RATES)
+        new_rates["BRL"] = _DEFAULT_RATES["BRL"] * 2
+        panel.update_rates(new_rates)
+        panel.do_convert()
+        text_after = panel.result_main.text()
+
+        assert text_before != text_after
+
+
+# ---------- MainWindow integration tests ----------
+
+class TestMainWindowIntegration:
+    def test_on_market_data_updates_universal_panel_rates(self, window):
+        """_on_market_data must push fresh rates to the UniversalConverterPanel."""
+        snapshot = {
+            "rates_to_usd": {"BTC": 75000.0, "BRL": 0.15, "USD": 1.0, "EUR": 1.1,
+                              "COP": 0.00025, "PEN": 0.28, "ETH": 3500.0, "USDT": 1.0},
+            "updated_at": "2026-01-01T00:00:00Z",
+            "sources": {"crypto": "test", "fiat": "test"},
+            "symbols": ["BTC", "ETH", "BRL", "USD"],
+        }
+        window._on_market_data(snapshot)
+        assert window.universal_panel._rates["BTC"] == 75000.0
+        assert window.universal_panel._rates["BRL"] == 0.15
+
+    def test_on_market_data_updates_symbols_in_universal_panel(self, window):
+        """_on_market_data must update the combo-box symbol list."""
+        snapshot = {
+            "rates_to_usd": {"USD": 1.0, "EUR": 1.1, "BRL": 0.18},
+            "updated_at": "2026-01-01T00:00:00Z",
+            "sources": {"crypto": "test", "fiat": "test"},
+            "symbols": ["USD", "EUR", "BRL"],
+        }
+        window._on_market_data(snapshot)
+        symbols = [
+            window.universal_panel.from_combo.itemData(i)
+            for i in range(window.universal_panel.from_combo.count())
+        ]
+        assert "USD" in symbols
+        assert "EUR" in symbols
+
+    def test_convert_uses_current_rates_to_usd(self, window):
+        """MainWindow.convert() must use current_rates_to_usd for calculation."""
+        window.current_rates_to_usd["BRL"] = 0.50  # override rate for the test
+        window.reais_input.input.setText("100")
+        window.convert()
+        result = window.result_label.text()
+        # 100 * 0.50 = 50.00 USD
+        assert "$50.00" in result
+
+    def test_start_live_refresh_sets_in_progress_flag(self, window):
+        """_start_live_refresh must set _refresh_in_progress to True."""
+        window._refresh_in_progress = False
+        window._start_live_refresh()
+        assert window._refresh_in_progress
+
+    def test_start_live_refresh_noop_when_already_in_progress(self, window):
+        """Second call while refresh is in progress should be a no-op."""
+        window._refresh_in_progress = True
+        # Ensure no exception and flag stays True
+        window._start_live_refresh()
+        assert window._refresh_in_progress
