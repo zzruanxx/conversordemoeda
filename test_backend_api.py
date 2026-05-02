@@ -572,3 +572,166 @@ def test_api_crypto_endpoint_price_values(monkeypatch):
         assert pytest.approx(body["prices"]["ETH"]["EUR"]) == 3000.0 / 1.08
         conn.close()
 
+
+
+# ---------- Backend quality / edge-case tests ----------
+
+
+def test_convert_asset_amount_zero_amount_returns_zero_net():
+    rates = {"USD": 1.0, "BRL": 0.2}
+    quote = convert_asset_amount(amount=0, from_symbol="BRL", to_symbol="USD", rates_to_usd=rates)
+    assert quote["result"]["gross"] == 0.0
+    assert quote["result"]["net"] == 0.0
+
+
+def test_convert_asset_amount_btc_to_eth_cross_crypto():
+    rates = {"USD": 1.0, "BTC": 60000.0, "ETH": 3000.0}
+    quote = convert_asset_amount(amount=1, from_symbol="BTC", to_symbol="ETH", rates_to_usd=rates)
+    expected = 60000.0 / 3000.0  # 20 ETH per BTC
+    assert pytest.approx(quote["result"]["gross"]) == expected
+    assert quote["from_symbol"] == "BTC"
+    assert quote["to_symbol"] == "ETH"
+
+
+def test_convert_asset_amount_negative_amount_raises():
+    rates = {"USD": 1.0, "BRL": 0.2}
+    with pytest.raises(ValueError):
+        convert_asset_amount(amount=-1, from_symbol="BRL", to_symbol="USD", rates_to_usd=rates)
+
+
+def test_convert_asset_amount_fee_100_raises():
+    rates = {"USD": 1.0, "BRL": 0.2}
+    with pytest.raises(ValueError, match="fee_percent deve ser menor que 100"):
+        convert_asset_amount(amount=100, from_symbol="BRL", to_symbol="USD",
+                             fee_percent=100, rates_to_usd=rates)
+
+
+def test_get_rates_symbols_list_not_empty():
+    rates = get_rates(allow_network=False)
+    assert isinstance(rates["SYMBOLS"], list)
+    assert len(rates["SYMBOLS"]) > 0
+
+
+def test_get_asset_catalog_symbols_match_assets_keys():
+    catalog = get_asset_catalog(
+        rates_to_usd={"USD": 1.0, "BRL": 0.2, "BTC": 50000.0}
+    )
+    assert set(catalog["symbols"]) == set(catalog["assets"].keys())
+
+
+def test_get_asset_catalog_usd_rate_is_one():
+    catalog = get_asset_catalog(
+        rates_to_usd={"USD": 1.0, "BRL": 0.2}
+    )
+    assert catalog["assets"]["USD"]["rate_to_usd"] == 1.0
+
+
+def test_convert_amounts_returns_inputs_unchanged():
+    data = convert_amounts(pesos=12345, soles=678, reais=910)
+    assert data["inputs"]["pesos"] == 12345.0
+    assert data["inputs"]["soles"] == 678.0
+    assert data["inputs"]["reais"] == 910.0
+
+
+def test_convert_amounts_total_equals_sum_of_usd_values():
+    data = convert_amounts(pesos=5000, soles=200, reais=100, btc=0.05, eth=0.2)
+    assert pytest.approx(data["total"]) == sum(data["usd"].values())
+
+
+# ---------- API integration tests ----------
+
+
+def test_api_response_content_type_is_json():
+    """Every endpoint must return application/json content-type."""
+    with APIServer() as srv:
+        for path in ("/health", "/rates", "/assets"):
+            conn = HTTPConnection(srv.host, srv.port, timeout=5)
+            conn.request("GET", path)
+            response = conn.getresponse()
+            response.read()
+            ct = response.getheader("Content-Type", "")
+            assert "application/json" in ct, f"{path} returned wrong Content-Type: {ct}"
+            conn.close()
+
+
+def test_api_quote_btc_to_eth_cross_crypto(monkeypatch):
+    """The /quote endpoint must handle cross-crypto (BTC → ETH) conversions."""
+    snapshot = {
+        "rates_to_usd": {
+            "USD": 1.0, "BTC": 60000.0, "ETH": 3000.0,
+            "BRL": 0.18, "EUR": 1.08, "COP": 0.00024, "PEN": 0.27, "USDT": 1.0,
+        },
+        "updated_at": "2026-03-01T00:00:00Z",
+        "updated_at_unix": 1772000000,
+        "sources": {"crypto": "test", "fiat": "test"},
+        "symbols": ["BTC", "ETH", "USD"],
+    }
+    monkeypatch.setattr("api.get_market_snapshot", lambda allow_network=True: snapshot)
+
+    with APIServer() as srv:
+        conn = HTTPConnection(srv.host, srv.port, timeout=5)
+        conn.request("GET", "/quote?from=BTC&to=ETH&amount=1")
+        response = conn.getresponse()
+        body = json.loads(response.read().decode("utf-8"))
+        assert response.status == 200
+        assert body["from_symbol"] == "BTC"
+        assert body["to_symbol"] == "ETH"
+        assert pytest.approx(body["result"]["gross"]) == 60000.0 / 3000.0
+        conn.close()
+
+
+def test_api_quote_missing_amount_returns_400():
+    with APIServer() as srv:
+        conn = HTTPConnection(srv.host, srv.port, timeout=5)
+        conn.request("GET", "/quote?from=BRL")
+        response = conn.getresponse()
+        body = json.loads(response.read().decode("utf-8"))
+        assert response.status == 400
+        assert "error" in body
+        conn.close()
+
+
+def test_api_convert_fee_and_spread_reduce_net():
+    """Net value with fee/spread must be strictly less than gross."""
+    payload = {"reais": 1000, "fee_percent": 2, "spread_percent": 1}
+    with APIServer() as srv:
+        conn = HTTPConnection(srv.host, srv.port, timeout=5)
+        conn.request(
+            "POST", "/convert",
+            body=json.dumps(payload),
+            headers={"Content-Type": "application/json"},
+        )
+        response = conn.getresponse()
+        body = json.loads(response.read().decode("utf-8"))
+        assert response.status == 200
+        gross = body["pricing"]["breakdown"]["reais"]["gross"]
+        net = body["pricing"]["breakdown"]["reais"]["net"]
+        assert net < gross
+
+
+def test_api_convert_all_zeros_returns_zero_total():
+    payload = {"pesos": 0, "soles": 0, "reais": 0, "btc": 0, "eth": 0}
+    with APIServer() as srv:
+        conn = HTTPConnection(srv.host, srv.port, timeout=5)
+        conn.request(
+            "POST", "/convert",
+            body=json.dumps(payload),
+            headers={"Content-Type": "application/json"},
+        )
+        response = conn.getresponse()
+        body = json.loads(response.read().decode("utf-8"))
+        assert response.status == 200
+        assert body["total"] == 0.0
+
+
+def test_api_assets_all_categories_present():
+    """The /assets endpoint must return at least one crypto and one fiat asset."""
+    with APIServer() as srv:
+        conn = HTTPConnection(srv.host, srv.port, timeout=5)
+        conn.request("GET", "/assets")
+        response = conn.getresponse()
+        body = json.loads(response.read().decode("utf-8"))
+        categories = {asset["category"] for asset in body["assets"].values()}
+        assert "crypto" in categories
+        assert "fiat" in categories
+        conn.close()
