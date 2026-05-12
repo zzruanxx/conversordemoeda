@@ -220,8 +220,9 @@ def test_market_service_force_refresh_bypasses_fresh_cache():
             self.calls = 0
 
         def fetch_rates_to_usd(self, symbols):
+            price = 65000.0 + self.calls
             self.calls += 1
-            return {"BTC": 65000.0 + self.calls, "ETH": 3200.0, "USDT": 1.0}
+            return {"BTC": price, "ETH": 3200.0, "USDT": 1.0}
 
     class ChangingFiatProvider(FiatProvider):
         name = "fiat-changing"
@@ -230,8 +231,9 @@ def test_market_service_force_refresh_bypasses_fresh_cache():
             self.calls = 0
 
         def fetch_rates_to_usd(self, symbols):
+            brl_rate = 0.2 + (self.calls * 0.01)
             self.calls += 1
-            return {"USD": 1.0, "BRL": 0.2 + (self.calls * 0.01), "EUR": 1.10, "COP": 0.00025, "PEN": 0.28}
+            return {"USD": 1.0, "BRL": brl_rate, "EUR": 1.10, "COP": 0.00025, "PEN": 0.28}
 
     crypto = ChangingCryptoProvider()
     fiat = ChangingFiatProvider()
@@ -260,6 +262,9 @@ def test_market_service_allow_network_false_uses_cached_live_snapshot():
     )
 
     live_snapshot = service.get_snapshot(allow_network=True)
+    assert crypto.calls == 1
+    assert fiat.calls == 1
+
     cached_snapshot = service.get_snapshot(allow_network=False)
 
     assert cached_snapshot["sources"] == live_snapshot["sources"]
