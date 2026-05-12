@@ -213,19 +213,41 @@ def test_market_service_cache_hit_does_not_re_call_providers():
 
 
 def test_market_service_force_refresh_bypasses_fresh_cache():
-    crypto = FallbackCryptoProvider()
-    fiat = FallbackFiatProvider()
+    class ChangingCryptoProvider(CryptoProvider):
+        name = "crypto-changing"
+
+        def __init__(self):
+            self.calls = 0
+
+        def fetch_rates_to_usd(self, symbols):
+            self.calls += 1
+            return {"BTC": 65000.0 + self.calls, "ETH": 3200.0, "USDT": 1.0}
+
+    class ChangingFiatProvider(FiatProvider):
+        name = "fiat-changing"
+
+        def __init__(self):
+            self.calls = 0
+
+        def fetch_rates_to_usd(self, symbols):
+            self.calls += 1
+            return {"USD": 1.0, "BRL": 0.2 + (self.calls * 0.01), "EUR": 1.10, "COP": 0.00025, "PEN": 0.28}
+
+    crypto = ChangingCryptoProvider()
+    fiat = ChangingFiatProvider()
     service = MarketDataService(
         crypto_providers=[crypto],
         fiat_providers=[fiat],
         ttl_seconds=60,
     )
 
-    service.get_snapshot(allow_network=True)
-    service.get_snapshot(allow_network=True, force_refresh=True)
+    first = service.get_snapshot(allow_network=True)
+    refreshed = service.get_snapshot(allow_network=True, force_refresh=True)
 
     assert crypto.calls == 2
     assert fiat.calls == 2
+    assert refreshed["rates_to_usd"]["BTC"] != first["rates_to_usd"]["BTC"]
+    assert refreshed["rates_to_usd"]["BRL"] != first["rates_to_usd"]["BRL"]
 
 
 def test_market_service_allow_network_false_uses_cached_live_snapshot():
@@ -241,6 +263,10 @@ def test_market_service_allow_network_false_uses_cached_live_snapshot():
     cached_snapshot = service.get_snapshot(allow_network=False)
 
     assert cached_snapshot["sources"] == live_snapshot["sources"]
+    assert cached_snapshot["rates_to_usd"] == live_snapshot["rates_to_usd"]
+    assert cached_snapshot["updated_at"] == live_snapshot["updated_at"]
+    assert cached_snapshot["updated_at_unix"] == live_snapshot["updated_at_unix"]
+    assert cached_snapshot["symbols"] == live_snapshot["symbols"]
     assert crypto.calls == 1
     assert fiat.calls == 1
 
