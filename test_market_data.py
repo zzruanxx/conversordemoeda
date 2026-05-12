@@ -210,3 +210,50 @@ def test_market_service_cache_hit_does_not_re_call_providers():
 
     assert crypto.calls == 1
     assert fiat.calls == 1
+
+
+def test_market_service_force_refresh_bypasses_fresh_cache():
+    crypto = FallbackCryptoProvider()
+    fiat = FallbackFiatProvider()
+    service = MarketDataService(
+        crypto_providers=[crypto],
+        fiat_providers=[fiat],
+        ttl_seconds=60,
+    )
+
+    service.get_snapshot(allow_network=True)
+    service.get_snapshot(allow_network=True, force_refresh=True)
+
+    assert crypto.calls == 2
+    assert fiat.calls == 2
+
+
+def test_market_service_allow_network_false_uses_cached_live_snapshot():
+    crypto = FallbackCryptoProvider()
+    fiat = FallbackFiatProvider()
+    service = MarketDataService(
+        crypto_providers=[crypto],
+        fiat_providers=[fiat],
+        ttl_seconds=60,
+    )
+
+    live_snapshot = service.get_snapshot(allow_network=True)
+    cached_snapshot = service.get_snapshot(allow_network=False)
+
+    assert cached_snapshot["sources"] == live_snapshot["sources"]
+    assert crypto.calls == 1
+    assert fiat.calls == 1
+
+
+def test_market_service_allow_network_true_all_fail_returns_static_fallback():
+    service = MarketDataService(
+        crypto_providers=[FailingCryptoProvider()],
+        fiat_providers=[FailingFiatProvider()],
+        ttl_seconds=20,
+    )
+
+    snapshot = service.get_snapshot(allow_network=True)
+
+    assert snapshot["sources"]["crypto"] == "static-fallback"
+    assert snapshot["sources"]["fiat"] == "static-fallback"
+    assert snapshot["rates_to_usd"]["USD"] == 1.0
